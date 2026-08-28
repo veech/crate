@@ -29,8 +29,12 @@ final class AppModel {
     let cfg: Config
     let store: Store
     let reconciler: Reconciler
+    let scanner: LibraryScanner
+    let player = PlayerModel()
 
     var tracks: [Track] = []
+    var repos: [String] = []
+    var collectionDir = AppSettings().collectionDir
     var loaded = false
     var cycling = false
     var lastError: String?
@@ -42,6 +46,7 @@ final class AppModel {
             let store = try Store(at: cfg.dbURL)
             self.store = store
             self.reconciler = Reconciler(cfg: cfg, store: store)
+            self.scanner = LibraryScanner(cfg: cfg, store: store)
         } catch {
             fatalError("cannot open database: \(error)")
         }
@@ -56,7 +61,38 @@ final class AppModel {
 
     func refresh() {
         tracks = (try? store.allTracks()) ?? []
+        repos = (try? store.repos()) ?? []
+        collectionDir = ((try? store.loadSettings())?.collectionDir) ?? collectionDir
         loaded = true
+    }
+
+    /// Provenance for Library rows, joined on the filed path.
+    var sourceByPath: [String: String] {
+        var out: [String: String] = [:]
+        for track in tracks {
+            guard let path = track.filePath else { continue }
+            out[path] = track.chosenSource.flatMap { sourceLabel[$0] } ?? ""
+        }
+        return out
+    }
+
+    func addRepo(_ url: URL) {
+        try? store.addRepo(url.path)
+        refresh()
+    }
+
+    func removeRepo(_ path: String) {
+        try? store.removeRepo(path)
+        refresh()
+    }
+
+    func setGenre(_ file: LibraryFile, genre: String) async -> LibraryFile? {
+        do {
+            return try await scanner.setGenre(file, genre: genre)
+        } catch {
+            lastError = "\(error)"
+            return nil
+        }
     }
 
     /// A gate's payoff: the user did the click-through, the browser downloaded the
