@@ -14,7 +14,7 @@ struct DJHeroApp: App {
         WindowGroup("djhero") {
             ContentView()
                 .environment(model)
-                .frame(minWidth: 820, minHeight: 520)
+                .frame(minWidth: 920, minHeight: 520)
                 .onAppear { NSApp.activate(ignoringOtherApps: true) }
         }
         Settings {
@@ -76,6 +76,14 @@ final class AppModel {
         } catch {
             lastError = "\(error)"
         }
+    }
+
+    func justRip(_ track: Track) {
+        guard !track.scURL.isEmpty else { return }
+        try? store.update(track.id, ["chosen_source": "sc_rip"])
+        try? store.setStatus(track.id, "resolved", "Gate skipped; ripping instead")
+        refresh()
+        runCycle()
     }
 
     func retry(_ track: Track) {

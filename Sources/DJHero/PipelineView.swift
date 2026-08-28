@@ -38,7 +38,7 @@ enum Col {
     static let source: CGFloat = 64
     static let time: CGFloat = 42
     static let event: CGFloat = 240
-    static let actions: CGFloat = 185
+    static let actions: CGFloat = 250
 }
 
 struct PipelineView: View {
@@ -174,6 +174,7 @@ struct TrackRow: View {
                     if let url = URL(string: track.gateURL) { NSWorkspace.shared.open(url) }
                 }
                 Button("Choose file…") { selectGateFile() }
+                Button("Just rip") { model.justRip(track) }
             }
             .controlSize(.small)
         } else if track.status == "needs_review" {
