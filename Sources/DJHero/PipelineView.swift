@@ -37,7 +37,8 @@ enum Col {
     static let origin: CGFloat = 30
     static let source: CGFloat = 64
     static let time: CGFloat = 42
-    static let event: CGFloat = 270
+    static let event: CGFloat = 240
+    static let actions: CGFloat = 185
 }
 
 struct PipelineView: View {
@@ -121,6 +122,7 @@ struct PipelineView: View {
             headerText("Source").frame(width: Col.source, alignment: .leading)
             headerText("Time").frame(width: Col.time, alignment: .trailing)
             headerText("Last event").frame(width: Col.event, alignment: .leading)
+            Color.clear.frame(width: Col.actions, height: 1)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
@@ -137,17 +139,6 @@ struct TrackRow: View {
     let track: Track
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            mainRow
-            if track.status == "held_gate" {
-                gateActions.padding(.leading, Col.art + 10)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 5)
-    }
-
-    var mainRow: some View {
         HStack(spacing: 10) {
             artwork
             Text(Matcher.displayTitle(track.title, mix: track.mix))
@@ -168,17 +159,26 @@ struct TrackRow: View {
                 .frame(width: Col.time, alignment: .trailing)
             eventCell
                 .frame(width: Col.event, alignment: .leading)
+            actionsCell
+                .frame(width: Col.actions, alignment: .trailing)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
     }
 
-    var gateActions: some View {
-        HStack(spacing: 8) {
-            Button("Open gate") {
-                if let url = URL(string: track.gateURL) { NSWorkspace.shared.open(url) }
+    @ViewBuilder
+    var actionsCell: some View {
+        if track.status == "held_gate" {
+            HStack(spacing: 6) {
+                Button("Open gate") {
+                    if let url = URL(string: track.gateURL) { NSWorkspace.shared.open(url) }
+                }
+                Button("Choose file…") { selectGateFile() }
             }
-            Button("Select downloaded file…") { selectGateFile() }
+            .controlSize(.small)
+        } else {
+            Color.clear.frame(height: 1)
         }
-        .controlSize(.small)
     }
 
     func selectGateFile() {
