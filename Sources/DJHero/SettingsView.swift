@@ -18,7 +18,7 @@ struct SettingsView: View {
             anthropicTab.tabItem { Label("Anthropic", systemImage: "sparkles") }
             generalTab.tabItem { Label("General", systemImage: "gearshape") }
         }
-        .frame(width: 500)
+        .frame(width: 560)
         .task { await load() }
     }
 
@@ -119,7 +119,7 @@ struct SettingsView: View {
                 + "with the Go+ account, export with Get cookies.txt LOCALLY, copy, then "
                 + "paste here and close the profile.")
         }
-        .padding(20)
+        .formStyle(.grouped)
     }
 
     var youtubeTab: some View {
@@ -131,7 +131,7 @@ struct SettingsView: View {
                 + "paste here — then close the profile and do not reopen it; reopening "
                 + "rotates Google cookies and kills the export.")
         }
-        .padding(20)
+        .formStyle(.grouped)
     }
 
     var beatportTab: some View {
@@ -146,7 +146,7 @@ struct SettingsView: View {
                 "In your dedicated djcopilot Chrome profile: sign in to www.beatport.com, "
                 + "export with Get cookies.txt LOCALLY, copy, then paste here.")
         }
-        .padding(20)
+        .formStyle(.grouped)
     }
 
     var anthropicTab: some View {
@@ -178,7 +178,7 @@ struct SettingsView: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(20)
+        .formStyle(.grouped)
     }
 
     var generalTab: some View {
@@ -203,20 +203,22 @@ struct SettingsView: View {
                 }
             }
         }
-        .padding(20)
+        .formStyle(.grouped)
     }
 
     func directoryField(_ label: String, path: Binding<String>) -> some View {
-        HStack {
-            TextField(label, text: path)
-            Button("Choose…") {
-                let panel = NSOpenPanel()
-                panel.canChooseDirectories = true
-                panel.canChooseFiles = false
-                panel.canCreateDirectories = true
-                panel.directoryURL = URL(fileURLWithPath: path.wrappedValue)
-                if panel.runModal() == .OK, let url = panel.url {
-                    path.wrappedValue = url.path
+        LabeledContent(label) {
+            HStack {
+                TextField("", text: path).labelsHidden()
+                Button("Choose…") {
+                    let panel = NSOpenPanel()
+                    panel.canChooseDirectories = true
+                    panel.canChooseFiles = false
+                    panel.canCreateDirectories = true
+                    panel.directoryURL = URL(fileURLWithPath: path.wrappedValue)
+                    if panel.runModal() == .OK, let url = panel.url {
+                        path.wrappedValue = url.path
+                    }
                 }
             }
         }
