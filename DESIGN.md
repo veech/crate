@@ -14,9 +14,10 @@ Two halves:
    keepers, 256k floor, credential-gated fetches, no external writes).
 2. **Library** — repositories of local folders (genre folders), with
    **Holding** as the pinned landing repo the pipeline files into. Tracks
-   keep their source dossier. Integrated player, multi-select, move between
-   repos, context-menu actions. Imported files without source info are
-   first-class rows (`origin: local`).
+   keep their source dossier. Integrated audition player (scrub to judge
+   genre), inline genre-tag editing, multi-select, move between repos,
+   context-menu actions. Imported files without source info are first-class
+   rows.
 
 Post-MVP (explicitly out of the MVP): the Analyze stage — perceptual quality
 rating, key (Camelot), BPM. The pipeline's spectral transcode warning ports
@@ -38,8 +39,10 @@ as-is since it is existing normalize behavior.
   `EgWKAQIIAWoMEA4QChADEAQQCRAF`), Anthropic Messages API with structured
   outputs (title split, match adjudication).
 - **State**: SQLite via GRDB in `~/Library/Application Support/djhero` —
-  same schema as the reference (tracks, track_events, settings) plus `repos`
-  when Library lands. All settings in the DB; no config file. Cookie files
+  same schema as the reference (tracks, track_events, settings) plus
+  `repos` and a `library_files` probe cache. Library reads folders straight
+  from disk; the cache keys on path + mtime + size so rescans are cheap.
+  All settings in the DB; no config file. Cookie files
   (Netscape format) in the auth dir, pasted via the settings UI.
 - **Defaults**: manual mode (`poll_minutes` 0) — cycles run from the UI;
   collection dir `~/Downloads/Queue`; downloads dir `~/Downloads`;
@@ -54,8 +57,10 @@ as-is since it is existing normalize behavior.
 
 - DRM is a hard boundary; CAPTCHA is a hard boundary (no SoundCloud queue
   drain — Datadome; playlist cleared by hand).
-- Key/BPM (post-MVP) go in the DB only, never into tags; tags stay exactly
-  title + artist + art.
+- Key/BPM (post-MVP) go in the DB only, never into tags. Normalize still
+  writes exactly title + artist + art; the one tag added later is genre,
+  typed by hand in Library — it must travel with the file into DJ software,
+  so it lives in the file, not the DB.
 - Buying stays manual on Beatport; purchases ingest from the downloads
   folder by track-id filename match and upgrade in place.
 
@@ -79,8 +84,9 @@ as-is since it is existing normalize behavior.
 
 1. Core port compiling + djheroctl auth/cycle verified against live services.
 2. SwiftUI shell: pipeline sections, run cycle, settings (cookies paste).
-3. Library: repos table, Holding, import scan, move/multi-select, context
-   menu, player (AVPlayer).
+3. Library: repos + probe cache, Holding, inline genre editing (written to
+   the file tag), move/multi-select, context menu, audition player with
+   scrubbing (AVAudioPlayer). Done.
 4. Gate flow UI: open gate + select the downloaded file (gates rarely
    expose a copyable final URL — learned in reference testing; the
    paste-a-link flow is dead). Needs-review candidate picker.
