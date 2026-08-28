@@ -83,6 +83,7 @@ struct TrackRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
+            artwork
             if activeStatuses.contains(track.status) {
                 ProgressView().controlSize(.mini)
             }
@@ -100,5 +101,22 @@ struct TrackRow: View {
             }
         }
         .padding(.vertical, 3)
+    }
+
+    @ViewBuilder
+    var artwork: some View {
+        if !track.artURL.isEmpty, let url = URL(string: track.artURL) {
+            AsyncImage(url: url) { image in
+                image.resizable().aspectRatio(contentMode: .fill)
+            } placeholder: {
+                RoundedRectangle(cornerRadius: 4).fill(.quaternary)
+            }
+            .frame(width: 28, height: 28)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        } else {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(.quaternary)
+                .frame(width: 28, height: 28)
+        }
     }
 }
