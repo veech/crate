@@ -1,0 +1,28 @@
+import Foundation
+
+public struct DJError: Error, CustomStringConvertible, Sendable {
+    public let description: String
+    public init(_ description: String) { self.description = description }
+}
+
+public struct Config: Sendable {
+    public let dataDir: URL
+
+    public init(dataDir: URL? = nil) {
+        self.dataDir = dataDir ?? FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("djhero", isDirectory: true)
+        for dir in [authDir, stagingDir, cacheDir] {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+    }
+
+    public var authDir: URL { dataDir.appendingPathComponent("auth", isDirectory: true) }
+    public var stagingDir: URL { dataDir.appendingPathComponent("staging", isDirectory: true) }
+    public var cacheDir: URL { dataDir.appendingPathComponent("cache", isDirectory: true) }
+    public var dbURL: URL { dataDir.appendingPathComponent("djhero.sqlite3") }
+
+    public func cookies(_ service: String) -> URL {
+        authDir.appendingPathComponent("\(service).txt")
+    }
+}

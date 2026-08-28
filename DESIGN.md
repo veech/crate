@@ -1,0 +1,82 @@
+# djhero — Design
+
+Native macOS app: a DJ library manager fed by an acquisition pipeline.
+Swift rewrite of `../djcopilot` (kept as the reference implementation; its
+DESIGN.md holds the full acquisition rationale, which carries over).
+
+## Identity
+
+Two halves:
+
+1. **Pipeline** — the ported djcopilot acquisition flow: SoundCloud Queue
+   playlist and Beatport keepers playlist in; resolve → fetch → normalize →
+   file. Same state machine, same event log, same policies (rip first, buy
+   keepers, 256k floor, credential-gated fetches, no external writes).
+2. **Library** — repositories of local folders (genre folders), with
+   **Holding** as the pinned landing repo the pipeline files into. Tracks
+   keep their source dossier. Integrated player, multi-select, move between
+   repos, context-menu actions. Imported files without source info are
+   first-class rows (`origin: local`).
+
+Post-MVP (explicitly out of the MVP): the Analyze stage — perceptual quality
+rating, key (Camelot), BPM. The pipeline's spectral transcode warning ports
+as-is since it is existing normalize behavior.
+
+## Architecture
+
+- **SwiftPM package**, three targets: `DJHeroCore` (library: DB, clients,
+  pipeline), `DJHero` (SwiftUI app), `djheroctl` (headless CLI for auth
+  checks and cycles — the test surface).
+- **No Python runtime.** External work is shell-outs to single-file
+  binaries: `yt-dlp` (rips, probes; `--js-runtimes bun` always passed),
+  `ffmpeg` (convert, tag/strip/art, spectral check). Dev resolves them from
+  Homebrew paths; packaging bundles them in the .app (the Downie pattern),
+  with yt-dlp updated independently of app releases.
+- **Service clients are native URLSession**: SoundCloud api-v2, Beatport v4,
+  YouTube Music InnerTube search (constants copied from the reference
+  ytmusicapi: WEB_REMIX client, songs filter param
+  `EgWKAQIIAWoMEA4QChADEAQQCRAF`), Anthropic Messages API with structured
+  outputs (title split, match adjudication).
+- **State**: SQLite via GRDB in `~/Library/Application Support/djhero` —
+  same schema as the reference (tracks, track_events, settings) plus `repos`
+  when Library lands. All settings in the DB; no config file. Cookie files
+  (Netscape format) in the auth dir, pasted via the settings UI.
+- **Defaults**: manual mode (`poll_minutes` 0) — cycles run from the UI;
+  collection dir `~/Downloads/Queue`; downloads dir `~/Downloads`;
+  target format FLAC.
+
+## Decisions carried from the reference
+
+- DRM is a hard boundary; CAPTCHA is a hard boundary (no SoundCloud queue
+  drain — Datadome; playlist cleared by hand).
+- Key/BPM (post-MVP) go in the DB only, never into tags; tags stay exactly
+  title + artist + art.
+- Buying stays manual on Beatport; purchases ingest from the downloads
+  folder by track-id filename match and upgrade in place.
+
+## Port map (reference file → here)
+
+| Reference (djcopilot) | djhero |
+|---|---|
+| db.py | Store.swift |
+| settings.py | Store.swift (AppSettings) |
+| soundcloud.py | SoundCloudClient.swift |
+| beatport.py | BeatportClient.swift |
+| ytm.py + ytmusicapi | YTMusicClient.swift + Matcher.swift |
+| adjudicate.py | Anthropic.swift |
+| fetch.py | YtDlp.swift |
+| normalize.py | FFmpeg.swift |
+| reconcile.py | Reconciler.swift |
+| auth.py | AuthStatus.swift |
+| web.py + React app | SwiftUI (DJHero target) |
+
+## Roadmap
+
+1. Core port compiling + djheroctl auth/cycle verified against live services.
+2. SwiftUI shell: pipeline sections, run cycle, settings (cookies paste).
+3. Library: repos table, Holding, import scan, move/multi-select, context
+   menu, player (AVPlayer).
+4. Gate flow UI (paste link / drop file), needs-review candidate picker.
+5. Packaging: .app bundle, bundled binaries, yt-dlp self-update.
+6. Post-MVP: Analyze (quality model, key, BPM — see reference conversation;
+   quality via a frozen PyInstaller CLI if adopted).

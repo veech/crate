@@ -1,0 +1,297 @@
+import Foundation
+import GRDB
+
+public struct Track: Identifiable, Sendable {
+    public var id: Int64
+    public var status: String
+    public var origin: String
+    public var scId: String?
+    public var bpId: String?
+    public var ytmId: String?
+    public var title: String
+    public var artist: String
+    public var mix: String
+    public var durationS: Int
+    public var gateURL: String
+    public var artURL: String
+    public var scURL: String
+    public var scDownloadable: Bool
+    public var chosenSource: String?
+    public var filePath: String?
+    public var filedAt: String?
+
+    init(row: Row) {
+        id = row["id"]
+        status = row["status"]
+        origin = row["origin"]
+        scId = row["sc_id"]
+        bpId = row["bp_id"]
+        ytmId = row["ytm_id"]
+        title = row["title"] ?? ""
+        artist = row["artist"] ?? ""
+        mix = row["mix"] ?? ""
+        durationS = row["duration_s"] ?? 0
+        gateURL = row["gate_url"] ?? ""
+        artURL = row["art_url"] ?? ""
+        scURL = row["sc_url"] ?? ""
+        scDownloadable = (row["sc_downloadable"] ?? 0) != 0
+        chosenSource = row["chosen_source"]
+        filePath = row["file_path"]
+        filedAt = row["filed_at"]
+    }
+}
+
+public struct TrackEvent: Sendable {
+    public let at: String
+    public let event: String
+    public let detail: String?
+}
+
+public struct AppSettings: Sendable {
+    public var scQueuePlaylist = "Queue"
+    public var bpKeepersPlaylist = ""
+    public var targetFormat = "flac"
+    public var pollMinutes = 0
+    public var anthropicModel = "claude-opus-5"
+    public var collectionDir = NSString(string: "~/Downloads/Queue").expandingTildeInPath
+    public var downloadsDir = NSString(string: "~/Downloads").expandingTildeInPath
+}
+
+public final class Store: Sendable {
+    public let dbQueue: DatabaseQueue
+
+    public init(at url: URL) throws {
+        dbQueue = try DatabaseQueue(path: url.path)
+        try dbQueue.write { db in
+            try db.execute(sql: """
+                CREATE TABLE IF NOT EXISTS tracks (
+                  id INTEGER PRIMARY KEY,
+                  status TEXT NOT NULL,
+                  origin TEXT NOT NULL,
+                  sc_id TEXT UNIQUE,
+                  bp_id TEXT UNIQUE,
+                  ytm_id TEXT,
+                  title TEXT,
+                  artist TEXT,
+                  mix TEXT,
+                  duration_s INTEGER,
+                  gate_url TEXT,
+                  art_url TEXT,
+                  sc_url TEXT,
+                  sc_downloadable INTEGER,
+                  chosen_source TEXT,
+                  file_path TEXT,
+                  filed_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS track_events (
+                  track_id INTEGER NOT NULL REFERENCES tracks(id),
+                  at TEXT NOT NULL DEFAULT (datetime('now')),
+                  event TEXT NOT NULL,
+                  detail TEXT
+                );
+                CREATE TABLE IF NOT EXISTS settings (
+                  key TEXT PRIMARY KEY,
+                  value TEXT NOT NULL
+                );
+                """)
+        }
+    }
+
+    // MARK: events + status
+
+    public func record(_ trackId: Int64, _ event: String, _ detail: String? = nil) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "INSERT INTO track_events (track_id, event, detail) VALUES (?, ?, ?)",
+                arguments: [trackId, event, detail])
+        }
+    }
+
+    public func setStatus(_ trackId: Int64, _ status: String, _ event: String,
+                          _ detail: String? = nil) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE tracks SET status = ? WHERE id = ?",
+                           arguments: [status, trackId])
+            try db.execute(
+                sql: "INSERT INTO track_events (track_id, event, detail) VALUES (?, ?, ?)",
+                arguments: [trackId, event, detail])
+        }
+    }
+
+    public func update(_ trackId: Int64, _ assignments: [String: (any DatabaseValueConvertible)?]) throws {
+        guard !assignments.isEmpty else { return }
+        let keys = assignments.keys.sorted()
+        let sql = "UPDATE tracks SET " + keys.map { "\($0) = ?" }.joined(separator: ", ")
+            + " WHERE id = ?"
+        var args: [(any DatabaseValueConvertible)?] = keys.map { assignments[$0] ?? nil }
+        args.append(trackId)
+        try dbQueue.write { db in
+            try db.execute(sql: sql, arguments: StatementArguments(args))
+        }
+    }
+
+    public func markFiledNow(_ trackId: Int64) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE tracks SET filed_at = datetime('now') WHERE id = ?",
+                           arguments: [trackId])
+        }
+    }
+
+    // MARK: queries
+
+    public func inStatus(_ status: String) throws -> [Track] {
+        try dbQueue.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM tracks WHERE status = ? ORDER BY id",
+                             arguments: [status]).map(Track.init)
+        }
+    }
+
+    public func allTracks() throws -> [Track] {
+        try dbQueue.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM tracks ORDER BY id DESC").map(Track.init)
+        }
+    }
+
+    public func track(id: Int64) throws -> Track? {
+        try dbQueue.read { db in
+            try Row.fetchOne(db, sql: "SELECT * FROM tracks WHERE id = ?", arguments: [id])
+                .map(Track.init)
+        }
+    }
+
+    public func track(scId: String) throws -> Track? {
+        try dbQueue.read { db in
+            try Row.fetchOne(db, sql: "SELECT * FROM tracks WHERE sc_id = ?", arguments: [scId])
+                .map(Track.init)
+        }
+    }
+
+    public func track(bpId: String) throws -> Track? {
+        try dbQueue.read { db in
+            try Row.fetchOne(db, sql: "SELECT * FROM tracks WHERE bp_id = ?", arguments: [bpId])
+                .map(Track.init)
+        }
+    }
+
+    public func events(trackId: Int64) throws -> [TrackEvent] {
+        try dbQueue.read { db in
+            try Row.fetchAll(
+                db, sql: "SELECT at, event, detail FROM track_events WHERE track_id = ? ORDER BY rowid",
+                arguments: [trackId]
+            ).map { TrackEvent(at: $0["at"], event: $0["event"], detail: $0["detail"]) }
+        }
+    }
+
+    public func lastEvent(trackId: Int64) throws -> TrackEvent? {
+        try dbQueue.read { db in
+            try Row.fetchOne(
+                db, sql: "SELECT at, event, detail FROM track_events WHERE track_id = ?"
+                    + " ORDER BY rowid DESC LIMIT 1",
+                arguments: [trackId]
+            ).map { TrackEvent(at: $0["at"], event: $0["event"], detail: $0["detail"]) }
+        }
+    }
+
+    public func statusCounts() throws -> [String: Int] {
+        try dbQueue.read { db in
+            var counts: [String: Int] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT status, COUNT(*) AS n FROM tracks GROUP BY status") {
+                counts[row["status"]] = row["n"]
+            }
+            return counts
+        }
+    }
+
+    // MARK: intake
+
+    /// Insert a Beatport playlist track if unseen; returns the new row id or nil.
+    public func upsertBeatport(_ t: BPTrack) throws -> Int64? {
+        try dbQueue.write { db in
+            if try Row.fetchOne(db, sql: "SELECT id FROM tracks WHERE bp_id = ?",
+                                arguments: [t.bpId]) != nil { return nil }
+            try db.execute(
+                sql: """
+                    INSERT INTO tracks (status, origin, bp_id, title, artist, mix, duration_s, art_url)
+                    VALUES ('new', 'beatport', ?, ?, ?, ?, ?, ?)
+                    """,
+                arguments: [t.bpId, t.title, t.artist, t.mix, t.durationS, t.artURL])
+            let id = db.lastInsertedRowID
+            try db.execute(
+                sql: "INSERT INTO track_events (track_id, event) VALUES (?, 'Seen in Beatport playlist')",
+                arguments: [id])
+            return id
+        }
+    }
+
+    /// Insert a SoundCloud queue track if unseen; title/artist stay raw until resolve splits them.
+    public func upsertSoundCloud(_ t: SCTrack, gate: Bool) throws -> Int64? {
+        try dbQueue.write { db in
+            if try Row.fetchOne(db, sql: "SELECT id FROM tracks WHERE sc_id = ?",
+                                arguments: [t.scId]) != nil { return nil }
+            try db.execute(
+                sql: """
+                    INSERT INTO tracks (status, origin, sc_id, sc_url, title, artist, mix,
+                                        duration_s, art_url, gate_url, sc_downloadable)
+                    VALUES ('new', 'soundcloud', ?, ?, ?, ?, '', ?, ?, ?, ?)
+                    """,
+                arguments: [t.scId, t.scURL, t.rawTitle, t.uploader, t.durationS,
+                            t.artURL, gate ? t.purchaseURL : "", t.downloadable ? 1 : 0])
+            let id = db.lastInsertedRowID
+            try db.execute(
+                sql: "INSERT INTO track_events (track_id, event) VALUES (?, 'Seen in SoundCloud queue')",
+                arguments: [id])
+            return id
+        }
+    }
+
+    // MARK: dedupe
+
+    public static func normalizeName(_ artist: String, _ title: String) -> String {
+        let lowered = "\(artist) \(title)".lowercased()
+        let cleaned = lowered.map { $0.isLetter || $0.isNumber ? $0 : " " }
+        return String(cleaned).split(separator: " ").joined(separator: " ")
+    }
+
+    public func findFiledDuplicate(artist: String, title: String) throws -> Track? {
+        let want = Self.normalizeName(artist, title)
+        return try inStatus("filed").first {
+            Self.normalizeName($0.artist, $0.title) == want
+        }
+    }
+
+    // MARK: settings
+
+    public func loadSettings() throws -> AppSettings {
+        let stored: [String: String] = try dbQueue.read { db in
+            var out: [String: String] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT key, value FROM settings") {
+                out[row["key"]] = row["value"]
+            }
+            return out
+        }
+        var s = AppSettings()
+        if let v = stored["sc_queue_playlist"] { s.scQueuePlaylist = v }
+        if let v = stored["bp_keepers_playlist"] { s.bpKeepersPlaylist = v }
+        if let v = stored["target_format"] { s.targetFormat = v }
+        if let v = stored["poll_minutes"], let n = Int(v) { s.pollMinutes = n }
+        if let v = stored["anthropic_model"] { s.anthropicModel = v }
+        if let v = stored["collection_dir"] { s.collectionDir = v }
+        if let v = stored["downloads_dir"] { s.downloadsDir = v }
+        return s
+    }
+
+    public func saveSettings(_ values: [String: String]) throws {
+        let allowed: Set<String> = ["sc_queue_playlist", "bp_keepers_playlist", "target_format",
+                                    "poll_minutes", "anthropic_model", "collection_dir",
+                                    "downloads_dir"]
+        try dbQueue.write { db in
+            for (key, value) in values {
+                guard allowed.contains(key) else { throw DJError("unknown setting \(key)") }
+                try db.execute(
+                    sql: "INSERT INTO settings (key, value) VALUES (?, ?)"
+                        + " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    arguments: [key, value])
+            }
+        }
+    }
+}
