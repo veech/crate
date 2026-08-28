@@ -118,9 +118,9 @@ struct PipelineView: View {
             Color.clear.frame(width: Col.art, height: 1)
             headerText("Title").frame(maxWidth: .infinity, alignment: .leading)
             headerText("Artist").frame(width: Col.artist, alignment: .leading)
+            headerText("Time").frame(width: Col.time, alignment: .trailing)
             headerText("Org").frame(width: Col.origin, alignment: .leading)
             headerText("Source").frame(width: Col.source, alignment: .leading)
-            headerText("Time").frame(width: Col.time, alignment: .trailing)
             headerText("Last event").frame(width: Col.event, alignment: .leading)
             Color.clear.frame(width: Col.actions, height: 1)
         }
@@ -147,6 +147,9 @@ struct TrackRow: View {
             Text(track.artist)
                 .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
                 .frame(width: Col.artist, alignment: .leading)
+            Text(duration)
+                .font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
+                .frame(width: Col.time, alignment: .trailing)
             Text(track.origin == "beatport" ? "BP" : "SC")
                 .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
                 .frame(width: Col.origin, alignment: .leading)
@@ -154,9 +157,6 @@ struct TrackRow: View {
                 .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
                 .lineLimit(1)
                 .frame(width: Col.source, alignment: .leading)
-            Text(duration)
-                .font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
-                .frame(width: Col.time, alignment: .trailing)
             eventCell
                 .frame(width: Col.event, alignment: .leading)
             actionsCell
