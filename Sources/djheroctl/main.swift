@@ -26,10 +26,15 @@ case "ytm-search":
         print("\(c.videoId)  \(c.durationS)s  \(c.title) — \(c.artists)")
     }
 
+case "set":
+    guard arguments.count >= 4 else { print("usage: djheroctl set <key> <value>"); exit(1) }
+    try store.saveSettings([arguments[2]: arguments[3...].joined(separator: " ")])
+    print("saved \(arguments[2])")
+
 case "settings":
     let s = try store.loadSettings()
     print(s)
 
 default:
-    print("usage: djheroctl auth | cycle | ytm-search <query> | settings")
+    print("usage: djheroctl auth | cycle | ytm-search <query> | settings | set <key> <value>")
 }

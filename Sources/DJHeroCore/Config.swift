@@ -25,4 +25,8 @@ public struct Config: Sendable {
     public func cookies(_ service: String) -> URL {
         authDir.appendingPathComponent("\(service).txt")
     }
+
+    public func saveCookies(_ service: String, text: String) throws {
+        try text.write(to: cookies(service), atomically: true, encoding: .utf8)
+    }
 }

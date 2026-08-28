@@ -9,11 +9,11 @@ public struct AuthRow: Sendable {
 /// Credential health; checks run concurrently, caller waits for the slowest.
 public enum AuthStatus {
     public static func check(cfg: Config, store: Store) async -> [AuthRow] {
-        let model = (try? store.loadSettings())?.anthropicModel ?? "claude-opus-5"
+        let settings = (try? store.loadSettings()) ?? AppSettings()
         async let sc = checkSoundCloud(cfg)
         async let yt = checkYouTube(cfg)
         async let bp = checkBeatport(cfg)
-        async let ai = checkAnthropic(model)
+        async let ai = checkAnthropic(settings.anthropicModel, key: settings.anthropicApiKey)
         return await [sc, yt, bp, ai]
     }
 
@@ -68,14 +68,14 @@ public enum AuthStatus {
         }
     }
 
-    static func checkAnthropic(_ model: String) async -> AuthRow {
-        guard ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] != nil else {
+    static func checkAnthropic(_ model: String, key: String?) async -> AuthRow {
+        guard Anthropic.resolveKey(key) != nil else {
             return AuthRow(service: "anthropic", state: "missing",
-                           detail: "Set ANTHROPIC_API_KEY — messy titles fall back to heuristics, "
-                               + "ambiguous matches go to review")
+                           detail: "Paste your API key in Settings — messy titles fall back to "
+                               + "heuristics, ambiguous matches go to review")
         }
         do {
-            try await Anthropic.countTokens(model: model)
+            try await Anthropic.countTokens(model: model, key: key)
             return AuthRow(service: "anthropic", state: "ok", detail: "Key valid (\(model))")
         } catch {
             return AuthRow(service: "anthropic", state: "invalid", detail: "\(error)")

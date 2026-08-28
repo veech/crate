@@ -100,7 +100,8 @@ public actor Reconciler {
     func resolveSoundCloud(_ settings: AppSettings, _ track: Track) async {
         var track = track
         let (artist, title) = await Anthropic.splitTitle(
-            model: settings.anthropicModel, raw: track.title, uploader: track.artist)
+            model: settings.anthropicModel, raw: track.title, uploader: track.artist,
+            key: settings.anthropicApiKey)
         if (artist, title) != (track.artist, track.title) {
             try? store.update(track.id, ["artist": artist, "title": title])
             try? store.record(track.id, "Title split", "\(title) — \(artist)")
@@ -143,7 +144,8 @@ public actor Reconciler {
             let wanted = "\(track.artist) — \(track.title)"
                 + (track.mix.isEmpty ? "" : " (\(track.mix))") + " [\(track.durationS)s]"
             if let verdict = await Anthropic.adjudicate(
-                model: settings.anthropicModel, wanted: wanted, candidates: result.candidates) {
+                model: settings.anthropicModel, wanted: wanted, candidates: result.candidates,
+                key: settings.anthropicApiKey) {
                 if let videoId = verdict.videoId {
                     try? store.record(track.id, "LLM adjudicated match", verdict.reason)
                     result = Matcher.Result(verdict: "exact", videoId: videoId,

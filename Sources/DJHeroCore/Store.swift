@@ -48,11 +48,14 @@ public struct TrackEvent: Sendable {
 }
 
 public struct AppSettings: Sendable {
+    public init() {}
+
     public var scQueuePlaylist = "Queue"
     public var bpKeepersPlaylist = ""
     public var targetFormat = "flac"
     public var pollMinutes = 0
     public var anthropicModel = "claude-opus-5"
+    public var anthropicApiKey = ""
     public var collectionDir = NSString(string: "~/Downloads/Queue").expandingTildeInPath
     public var downloadsDir = NSString(string: "~/Downloads").expandingTildeInPath
 }
@@ -275,6 +278,7 @@ public final class Store: Sendable {
         if let v = stored["target_format"] { s.targetFormat = v }
         if let v = stored["poll_minutes"], let n = Int(v) { s.pollMinutes = n }
         if let v = stored["anthropic_model"] { s.anthropicModel = v }
+        if let v = stored["anthropic_api_key"] { s.anthropicApiKey = v }
         if let v = stored["collection_dir"] { s.collectionDir = v }
         if let v = stored["downloads_dir"] { s.downloadsDir = v }
         return s
@@ -282,8 +286,8 @@ public final class Store: Sendable {
 
     public func saveSettings(_ values: [String: String]) throws {
         let allowed: Set<String> = ["sc_queue_playlist", "bp_keepers_playlist", "target_format",
-                                    "poll_minutes", "anthropic_model", "collection_dir",
-                                    "downloads_dir"]
+                                    "poll_minutes", "anthropic_model", "anthropic_api_key",
+                                    "collection_dir", "downloads_dir"]
         try dbQueue.write { db in
             for (key, value) in values {
                 guard allowed.contains(key) else { throw DJError("unknown setting \(key)") }

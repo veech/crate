@@ -44,6 +44,11 @@ as-is since it is existing normalize behavior.
 - **Defaults**: manual mode (`poll_minutes` 0) — cycles run from the UI;
   collection dir `~/Downloads/Queue`; downloads dir `~/Downloads`;
   target format FLAC.
+- **Anthropic key**: a setting pasted in the app (env var as CLI
+  fallback). Stored plaintext in the app database — acceptable for a
+  single-user machine; moving it to the Keychain is a packaging-time
+  change, once the app is signed and its identity stops changing every
+  build (unsigned dev builds would otherwise prompt on every rebuild).
 
 ## Decisions carried from the reference
 

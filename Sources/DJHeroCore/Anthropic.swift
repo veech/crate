@@ -3,11 +3,14 @@ import Foundation
 /// Anthropic Messages API with structured outputs. Used for two things only:
 /// messy SoundCloud title splitting and ambiguous-match adjudication.
 public enum Anthropic {
-    static var apiKey: String? { ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] }
+    public static func resolveKey(_ stored: String?) -> String? {
+        if let stored, !stored.isEmpty { return stored }
+        return ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]
+    }
 
-    static func structured(model: String, prompt: String,
-                           schema: [String: Any]) async throws -> [String: Any]? {
-        guard let key = apiKey else { return nil }
+    static func structured(model: String, prompt: String, schema: [String: Any],
+                           key stored: String?) async throws -> [String: Any]? {
+        guard let key = resolveKey(stored) else { return nil }
         let body: [String: Any] = [
             "model": model,
             "max_tokens": 16000,
@@ -31,8 +34,8 @@ public enum Anthropic {
         return JSON.dict(parsed)
     }
 
-    public static func countTokens(model: String) async throws {
-        guard let key = apiKey else { throw DJError("ANTHROPIC_API_KEY is not set") }
+    public static func countTokens(model: String, key stored: String?) async throws {
+        guard let key = resolveKey(stored) else { throw DJError("no API key configured") }
         let body: [String: Any] = [
             "model": model,
             "messages": [["role": "user", "content": "ping"]],
@@ -62,8 +65,8 @@ public enum Anthropic {
                 raw.trimmingCharacters(in: .whitespaces))
     }
 
-    public static func splitTitle(model: String, raw: String,
-                                  uploader: String) async -> (artist: String, title: String) {
+    public static func splitTitle(model: String, raw: String, uploader: String,
+                                  key: String?) async -> (artist: String, title: String) {
         let prompt = """
             SoundCloud track metadata is messy. Determine the artist and the clean track \
             title for tagging a DJ library file.
@@ -81,7 +84,7 @@ public enum Anthropic {
             "required": ["artist", "title"],
             "additionalProperties": false,
         ]
-        if let out = try? await structured(model: model, prompt: prompt, schema: schema),
+        if let out = try? await structured(model: model, prompt: prompt, schema: schema, key: key),
            let artist = JSON.string(out["artist"])?.trimmingCharacters(in: .whitespaces),
            let title = JSON.string(out["title"])?.trimmingCharacters(in: .whitespaces),
            !artist.isEmpty, !title.isEmpty {
@@ -97,8 +100,8 @@ public enum Anthropic {
 
     /// nil means no verdict (no key or API failure); the track goes to human review.
     public static func adjudicate(model: String, wanted: String,
-                                  candidates: [YTMCandidate]) async -> Verdict? {
-        guard apiKey != nil else { return nil }
+                                  candidates: [YTMCandidate], key: String?) async -> Verdict? {
+        guard resolveKey(key) != nil else { return nil }
         let list = candidates
             .map { "- videoId \($0.videoId): \($0.title) — \($0.artists) (\($0.durationS)s)" }
             .joined(separator: "\n")
@@ -124,7 +127,7 @@ public enum Anthropic {
             "required": ["videoId", "reason"],
             "additionalProperties": false,
         ]
-        guard let out = try? await structured(model: model, prompt: prompt, schema: schema),
+        guard let out = try? await structured(model: model, prompt: prompt, schema: schema, key: key),
               let reason = JSON.string(out["reason"]) else { return nil }
         return Verdict(videoId: JSON.string(out["videoId"]), reason: reason)
     }

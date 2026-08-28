@@ -17,6 +17,9 @@ struct DJHeroApp: App {
                 .frame(minWidth: 760, minHeight: 480)
                 .onAppear { NSApp.activate(ignoringOtherApps: true) }
         }
+        Settings {
+            SettingsView().environment(model)
+        }
     }
 }
 
