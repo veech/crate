@@ -78,6 +78,17 @@ final class AppModel {
         }
     }
 
+    func retry(_ track: Track) {
+        try? store.setStatus(track.id, "new", "Retrying")
+        refresh()
+        runCycle()
+    }
+
+    func sendToBuyList(_ track: Track) {
+        try? store.setStatus(track.id, "buy_list", "Sent to buy list")
+        refresh()
+    }
+
     func runCycle() {
         guard !cycling else { return }
         cycling = true

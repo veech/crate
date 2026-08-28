@@ -29,7 +29,9 @@ public enum Anthropic {
             throw DJError("anthropic \(resp.statusCode): \(String(data: data, encoding: .utf8) ?? "")")
         }
         let message = JSON.dict(try HTTP.json(data))
-        guard let text = JSON.string(JSON.dict(JSON.array(message["content"]).first)["text"]),
+        let blocks = JSON.array(message["content"]).map(JSON.dict)
+        guard let text = blocks.first(where: { JSON.string($0["type"]) == "text" })
+                .flatMap({ JSON.string($0["text"]) }),
               let parsed = try? HTTP.json(Data(text.utf8)) else { return nil }
         return JSON.dict(parsed)
     }

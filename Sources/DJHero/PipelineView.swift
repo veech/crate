@@ -176,6 +176,12 @@ struct TrackRow: View {
                 Button("Choose file…") { selectGateFile() }
             }
             .controlSize(.small)
+        } else if track.status == "needs_review" {
+            HStack(spacing: 6) {
+                Button("Retry") { model.retry(track) }
+                Button("Buy instead") { model.sendToBuyList(track) }
+            }
+            .controlSize(.small)
         } else {
             Color.clear.frame(height: 1)
         }
