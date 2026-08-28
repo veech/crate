@@ -57,10 +57,11 @@ struct ContentView: View {
         } detail: {
             switch selection {
             case "holding":
-                LibraryView(folder: model.collectionDir, name: "Holding")
+                LibraryView(model: model, folder: model.collectionDir, name: "Holding")
             case let tag? where tag.hasPrefix("repo:"):
                 let path = String(tag.dropFirst("repo:".count))
-                LibraryView(folder: path, name: URL(fileURLWithPath: path).lastPathComponent)
+                LibraryView(model: model, folder: path,
+                            name: URL(fileURLWithPath: path).lastPathComponent)
             default:
                 PipelineView()
             }

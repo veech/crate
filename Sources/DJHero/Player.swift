@@ -74,11 +74,10 @@ final class PlayerModel {
 }
 
 struct PlayerBar: View {
-    @Environment(AppModel.self) private var model
+    let player: PlayerModel
     @State private var scrub: Double?
 
     var body: some View {
-        let player = model.player
         HStack(spacing: 12) {
             ArtThumb(path: player.current?.artPath, size: 36)
             VStack(alignment: .leading, spacing: 1) {

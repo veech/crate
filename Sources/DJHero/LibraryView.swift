@@ -14,8 +14,10 @@ struct LibRow: Identifiable {
     var durationS: Double { file.durationS }
 }
 
+// Table cells and menus render in bridged AppKit hosts where the observable
+// environment does not reliably reach; the model is passed by reference instead.
 struct LibraryView: View {
-    @Environment(AppModel.self) private var model
+    let model: AppModel
     let folder: String
     let name: String
 
@@ -38,7 +40,7 @@ struct LibraryView: View {
             table
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if model.player.current != nil { PlayerBar() }
+            if model.player.current != nil { PlayerBar(player: model.player) }
         }
         .task(id: folder) {
             selection = []
@@ -81,7 +83,7 @@ struct LibraryView: View {
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
             }
             TableColumn("Genre", value: \.genre) { row in
-                GenreCell(file: row.file) { updated in
+                GenreCell(model: model, file: row.file) { updated in
                     if let i = files.firstIndex(where: { $0.path == updated.path }) {
                         files[i] = updated
                     }
@@ -162,13 +164,14 @@ struct LibraryView: View {
 
 /// Genre edits write straight into the file's tag; Return commits.
 struct GenreCell: View {
-    @Environment(AppModel.self) private var model
+    let model: AppModel
     let file: LibraryFile
     let onSaved: (LibraryFile) -> Void
     @State private var text: String
     @State private var saving = false
 
-    init(file: LibraryFile, onSaved: @escaping (LibraryFile) -> Void) {
+    init(model: AppModel, file: LibraryFile, onSaved: @escaping (LibraryFile) -> Void) {
+        self.model = model
         self.file = file
         self.onSaved = onSaved
         _text = State(initialValue: file.genre)
