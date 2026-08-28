@@ -20,6 +20,24 @@ let stages: [StageSpec] = [
 
 let activeStatuses: Set<String> = ["resolving", "fetching", "normalizing"]
 
+let activeStageLabel: [String: String] = [
+    "resolving": "Resolving", "fetching": "Downloading", "normalizing": "Tagging",
+]
+
+let sourceLabel: [String: String] = [
+    "sc_free_dl": "Free DL", "sc_rip": "SC rip", "ytm": "YTM",
+    "gate": "Gate", "purchase": "Purchase", "existing": "Duplicate",
+]
+
+enum Col {
+    static let art: CGFloat = 28
+    static let artist: CGFloat = 150
+    static let origin: CGFloat = 30
+    static let source: CGFloat = 64
+    static let time: CGFloat = 42
+    static let event: CGFloat = 270
+}
+
 struct PipelineView: View {
     @Environment(AppModel.self) private var model
 
@@ -58,7 +76,8 @@ struct PipelineView: View {
 
     func section(_ stage: StageSpec) -> some View {
         let rows = model.tracks.filter { stage.statuses.contains($0.status) }
-        return VStack(alignment: .leading, spacing: 6) {
+        let shown = Array(rows.prefix(stage.id == "filed" ? 30 : 500))
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Circle().fill(stage.color).frame(width: 7, height: 7)
                 Text(stage.label).font(.subheadline).bold()
@@ -67,13 +86,47 @@ struct PipelineView: View {
             }
             if rows.isEmpty {
                 Text("Empty").font(.caption).foregroundStyle(.tertiary)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
             } else {
-                ForEach(rows.prefix(stage.id == "filed" ? 30 : 500)) { track in
-                    TrackRow(track: track)
+                VStack(spacing: 0) {
+                    columnHeaders
+                    Divider()
+                    ForEach(shown) { track in
+                        TrackRow(track: track)
+                        if track.id != shown.last?.id {
+                            Divider().opacity(0.5)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+                .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+                if stage.id == "filed" && rows.count > 30 {
+                    Text("Showing the latest 30 of \(rows.count)")
+                        .font(.caption).foregroundStyle(.tertiary)
                 }
             }
         }
+    }
+
+    var columnHeaders: some View {
+        HStack(spacing: 10) {
+            Color.clear.frame(width: Col.art, height: 1)
+            headerText("Title").frame(maxWidth: .infinity, alignment: .leading)
+            headerText("Artist").frame(width: Col.artist, alignment: .leading)
+            headerText("Org").frame(width: Col.origin, alignment: .leading)
+            headerText("Source").frame(width: Col.source, alignment: .leading)
+            headerText("Time").frame(width: Col.time, alignment: .trailing)
+            headerText("Last event").frame(width: Col.event, alignment: .leading)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+    }
+
+    func headerText(_ text: String) -> some View {
+        Text(text.uppercased()).font(.system(size: 9, weight: .medium))
+            .foregroundStyle(.tertiary).kerning(0.8)
     }
 }
 
@@ -84,23 +137,46 @@ struct TrackRow: View {
     var body: some View {
         HStack(spacing: 10) {
             artwork
-            if activeStatuses.contains(track.status) {
-                ProgressView().controlSize(.mini)
-            }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(Matcher.displayTitle(track.title, mix: track.mix))
-                    .font(.system(size: 12, weight: .medium))
-                Text(track.artist).font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-            Spacer()
+            Text(Matcher.displayTitle(track.title, mix: track.mix))
+                .font(.system(size: 12, weight: .medium)).lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(track.artist)
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                .frame(width: Col.artist, alignment: .leading)
             Text(track.origin == "beatport" ? "BP" : "SC")
-                .font(.system(size: 9).monospaced()).foregroundStyle(.secondary)
+                .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
+                .frame(width: Col.origin, alignment: .leading)
+            Text(track.chosenSource.flatMap { sourceLabel[$0] } ?? track.chosenSource ?? "")
+                .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(width: Col.source, alignment: .leading)
+            Text(duration)
+                .font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
+                .frame(width: Col.time, alignment: .trailing)
+            eventCell
+                .frame(width: Col.event, alignment: .leading)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+    }
+
+    var duration: String {
+        String(format: "%d:%02d", track.durationS / 60, track.durationS % 60)
+    }
+
+    var eventCell: some View {
+        HStack(spacing: 6) {
+            if let stage = activeStageLabel[track.status] {
+                ProgressView().controlSize(.mini)
+                Text(stage).font(.system(size: 10).monospaced()).foregroundStyle(.cyan)
+            }
             if let event = try? model.store.lastEvent(trackId: track.id) {
-                Text(event.event).font(.system(size: 10).monospaced())
-                    .foregroundStyle(.tertiary).lineLimit(1)
+                Text(event.event)
+                    .font(.system(size: 10).monospaced()).foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .help(event.detail.map { "\(event.event) · \($0)" } ?? event.event)
             }
         }
-        .padding(.vertical, 3)
     }
 
     @ViewBuilder
@@ -111,12 +187,12 @@ struct TrackRow: View {
             } placeholder: {
                 RoundedRectangle(cornerRadius: 4).fill(.quaternary)
             }
-            .frame(width: 28, height: 28)
+            .frame(width: Col.art, height: Col.art)
             .clipShape(RoundedRectangle(cornerRadius: 4))
         } else {
             RoundedRectangle(cornerRadius: 4)
                 .fill(.quaternary)
-                .frame(width: 28, height: 28)
+                .frame(width: Col.art, height: Col.art)
         }
     }
 }
