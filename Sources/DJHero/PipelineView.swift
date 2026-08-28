@@ -51,7 +51,6 @@ struct PipelineView: View {
             }
             Button(model.cycling ? "Cycling…" : "Run cycle") { model.runCycle() }
                 .disabled(model.cycling)
-            SettingsLink { Text("Settings") }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

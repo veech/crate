@@ -12,9 +12,9 @@ struct DJHeroApp: App {
 
     var body: some Scene {
         WindowGroup("djhero") {
-            PipelineView()
+            ContentView()
                 .environment(model)
-                .frame(minWidth: 760, minHeight: 480)
+                .frame(minWidth: 820, minHeight: 520)
                 .onAppear { NSApp.activate(ignoringOtherApps: true) }
         }
         Settings {
