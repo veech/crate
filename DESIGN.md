@@ -81,7 +81,9 @@ as-is since it is existing normalize behavior.
 2. SwiftUI shell: pipeline sections, run cycle, settings (cookies paste).
 3. Library: repos table, Holding, import scan, move/multi-select, context
    menu, player (AVPlayer).
-4. Gate flow UI (paste link / drop file), needs-review candidate picker.
+4. Gate flow UI: open gate + select the downloaded file (gates rarely
+   expose a copyable final URL — learned in reference testing; the
+   paste-a-link flow is dead). Needs-review candidate picker.
 5. Packaging: .app bundle, bundled binaries, yt-dlp self-update.
 6. Post-MVP: Analyze (quality model, key, BPM — see reference conversation;
    quality via a frozen PyInstaller CLI if adopted).

@@ -59,6 +59,25 @@ final class AppModel {
         loaded = true
     }
 
+    /// A gate's payoff: the user did the click-through, the browser downloaded the
+    /// file, and this joins it to the track so it inherits title, artist, and art.
+    func attachGateFile(track: Track, file: URL) {
+        do {
+            let staged = cfg.stagingDir.appendingPathComponent(file.lastPathComponent)
+            if FileManager.default.fileExists(atPath: staged.path) {
+                try FileManager.default.removeItem(at: staged)
+            }
+            try FileManager.default.copyItem(at: file, to: staged)
+            try store.update(track.id, ["file_path": staged.path, "chosen_source": "gate"])
+            try store.setStatus(track.id, "fetched", "Gate file attached",
+                                staged.lastPathComponent)
+            refresh()
+            runCycle()
+        } catch {
+            lastError = "\(error)"
+        }
+    }
+
     func runCycle() {
         guard !cycling else { return }
         cycling = true

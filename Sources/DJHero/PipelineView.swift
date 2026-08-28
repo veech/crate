@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import DJHeroCore
 
 struct StageSpec: Identifiable {
@@ -135,6 +137,17 @@ struct TrackRow: View {
     let track: Track
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            mainRow
+            if track.status == "held_gate" {
+                gateActions.padding(.leading, Col.art + 10)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+    }
+
+    var mainRow: some View {
         HStack(spacing: 10) {
             artwork
             Text(Matcher.displayTitle(track.title, mix: track.mix))
@@ -156,8 +169,28 @@ struct TrackRow: View {
             eventCell
                 .frame(width: Col.event, alignment: .leading)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 5)
+    }
+
+    var gateActions: some View {
+        HStack(spacing: 8) {
+            Button("Open gate") {
+                if let url = URL(string: track.gateURL) { NSWorkspace.shared.open(url) }
+            }
+            Button("Select downloaded file…") { selectGateFile() }
+        }
+        .controlSize(.small)
+    }
+
+    func selectGateFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.audio]
+        panel.directoryURL = FileManager.default
+            .urls(for: .downloadsDirectory, in: .userDomainMask).first
+        if panel.runModal() == .OK, let url = panel.url {
+            model.attachGateFile(track: track, file: url)
+        }
     }
 
     var duration: String {
