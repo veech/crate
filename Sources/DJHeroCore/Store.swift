@@ -96,6 +96,20 @@ public final class Store: Sendable {
                   key TEXT PRIMARY KEY,
                   value TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS repos (
+                  path TEXT PRIMARY KEY,
+                  added_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS library_files (
+                  path TEXT PRIMARY KEY,
+                  mtime REAL NOT NULL,
+                  size INTEGER NOT NULL,
+                  title TEXT,
+                  artist TEXT,
+                  genre TEXT,
+                  duration_s REAL,
+                  art_path TEXT
+                );
                 """)
         }
     }
@@ -259,6 +273,80 @@ public final class Store: Sendable {
         let want = Self.normalizeName(artist, title)
         return try inStatus("filed").first {
             Self.normalizeName($0.artist, $0.title) == want
+        }
+    }
+
+    // MARK: library
+
+    public func repos() throws -> [String] {
+        try dbQueue.read { db in
+            try Row.fetchAll(db, sql: "SELECT path FROM repos ORDER BY path").map { $0["path"] }
+        }
+    }
+
+    public func addRepo(_ path: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "INSERT OR IGNORE INTO repos (path) VALUES (?)", arguments: [path])
+        }
+    }
+
+    public func removeRepo(_ path: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM repos WHERE path = ?", arguments: [path])
+        }
+    }
+
+    /// Cached probe results for a folder's direct children.
+    public func cachedLibraryFiles(inFolder folder: String) throws -> [String: LibraryFile] {
+        let escaped = folder
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+        return try dbQueue.read { db in
+            var out: [String: LibraryFile] = [:]
+            for row in try Row.fetchAll(
+                db, sql: "SELECT * FROM library_files WHERE path LIKE ? ESCAPE '\\'",
+                arguments: [escaped + "/%"]) {
+                let f = LibraryFile(row: row)
+                if URL(fileURLWithPath: f.path).deletingLastPathComponent().path == folder {
+                    out[f.path] = f
+                }
+            }
+            return out
+        }
+    }
+
+    public func upsertLibraryFile(_ f: LibraryFile) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO library_files (path, mtime, size, title, artist, genre, duration_s, art_path)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(path) DO UPDATE SET mtime = excluded.mtime, size = excluded.size,
+                      title = excluded.title, artist = excluded.artist, genre = excluded.genre,
+                      duration_s = excluded.duration_s, art_path = excluded.art_path
+                    """,
+                arguments: [f.path, f.mtime, f.size, f.title, f.artist, f.genre,
+                            f.durationS, f.artPath])
+        }
+    }
+
+    public func deleteLibraryFiles(_ paths: [String]) throws {
+        guard !paths.isEmpty else { return }
+        try dbQueue.write { db in
+            for path in paths {
+                try db.execute(sql: "DELETE FROM library_files WHERE path = ?", arguments: [path])
+            }
+        }
+    }
+
+    /// A moved file keeps its probe cache, and its pipeline record follows it.
+    public func relocateFile(from old: String, to new: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE library_files SET path = ? WHERE path = ?",
+                           arguments: [new, old])
+            try db.execute(sql: "UPDATE tracks SET file_path = ? WHERE file_path = ?",
+                           arguments: [new, old])
         }
     }
 

@@ -53,6 +53,72 @@ public enum FFmpeg {
         _ = try FileManager.default.replaceItemAt(path, withItemAt: temp)
     }
 
+    public struct ProbedTags: Sendable {
+        public init() {}
+        public var title = ""
+        public var artist = ""
+        public var genre = ""
+        public var durationS: Double = 0
+        public var hasArt = false
+    }
+
+    /// Tags and duration; hasArt reflects an attached-picture stream.
+    public static func probeTags(_ path: URL) async -> ProbedTags? {
+        guard let tool = try? Binaries.find("ffprobe"),
+              let result = try? await ProcessRunner.run(tool, [
+                  "-v", "quiet", "-print_format", "json",
+                  "-show_format", "-show_streams", path.path,
+              ]), result.status == 0,
+              let root = try? HTTP.json(result.stdout) else { return nil }
+
+        var probed = ProbedTags()
+        let format = JSON.dict(JSON.dict(root)["format"])
+        probed.durationS = JSON.string(format["duration"]).flatMap(Double.init) ?? 0
+        var tags: [String: String] = [:]
+        for (key, value) in JSON.dict(format["tags"]) {
+            if let s = JSON.string(value) { tags[key.lowercased()] = s }
+        }
+        // Some containers carry tags only at the stream level.
+        for stream in JSON.array(JSON.dict(root)["streams"]).map(JSON.dict) {
+            if JSON.string(stream["codec_type"]) == "video" { probed.hasArt = true }
+            for (key, value) in JSON.dict(stream["tags"]) where tags[key.lowercased()] == nil {
+                if let s = JSON.string(value) { tags[key.lowercased()] = s }
+            }
+        }
+        probed.title = tags["title"] ?? ""
+        probed.artist = tags["artist"] ?? ""
+        probed.genre = tags["genre"] ?? ""
+        return probed
+    }
+
+    /// Downscaled copy of the embedded art, sized for list thumbnails.
+    public static func extractArtThumb(_ path: URL, to out: URL) async -> Bool {
+        guard let tool = try? Binaries.find("ffmpeg"),
+              let result = try? await ProcessRunner.run(tool, [
+                  "-y", "-i", path.path, "-map", "0:v:0", "-frames:v", "1",
+                  "-vf", "scale=120:-2", out.path,
+              ]) else { return false }
+        return result.status == 0 && FileManager.default.fileExists(atPath: out.path)
+    }
+
+    /// Rewrite the genre tag in place; every other tag and the art stay.
+    public static func writeGenre(_ path: URL, genre: String) async throws {
+        let ext = path.pathExtension.lowercased()
+        let temp = path.deletingLastPathComponent()
+            .appendingPathComponent(UUID().uuidString + "." + ext)
+        var args = ["-y", "-i", path.path, "-map", "0", "-c", "copy",
+                    "-map_metadata", "0", "-metadata", "genre=\(genre)"]
+        if ext == "aiff" || ext == "aif" { args += ["-write_id3v2", "1"] }
+        args.append(temp.path)
+        let tool = try Binaries.find("ffmpeg")
+        let result = try await ProcessRunner.run(tool, args)
+        guard result.status == 0 else {
+            try? FileManager.default.removeItem(at: temp)
+            throw DJError("ffmpeg genre write failed: " + YtDlp.tail(result.stderrText))
+        }
+        _ = try FileManager.default.replaceItemAt(path, withItemAt: temp)
+    }
+
     static let spectralEdges = [10000, 13000, 15000, 17000]
 
     /// A lossy transcode shows a cliff in the upper spectrum; natural rolloff is
