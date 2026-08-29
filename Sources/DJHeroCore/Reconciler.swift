@@ -30,6 +30,26 @@ public actor Reconciler {
         try purchasesScan(settings)
     }
 
+    /// At most `cap` tracks in flight per stage. The store serializes its own
+    /// writes, and the heavy work — network and child processes — releases the
+    /// actor, so tracks genuinely overlap. Cancellation stops new launches and
+    /// drains the running ones.
+    func forEachConcurrent<T: Sendable>(_ items: [T], cap: Int,
+                                        _ work: @Sendable @escaping (T) async -> Void) async {
+        await withTaskGroup(of: Void.self) { group in
+            var iterator = items.makeIterator()
+            var launched = 0
+            while launched < cap, let item = iterator.next() {
+                group.addTask { await work(item) }
+                launched += 1
+            }
+            while await group.next() != nil {
+                guard !Task.isCancelled, let item = iterator.next() else { continue }
+                group.addTask { await work(item) }
+            }
+        }
+    }
+
     /// A crash mid-stage leaves resolving/fetching/normalizing rows; step them back.
     func recoverInterrupted() throws {
         for (stuck, back) in [("resolving", "new"), ("fetching", "resolved"),
@@ -75,13 +95,13 @@ public actor Reconciler {
 
     func resolveNew(_ settings: AppSettings) async {
         guard let rows = try? store.inStatus("new") else { return }
-        for track in rows {
+        await forEachConcurrent(rows, cap: 4) { track in
             if Task.isCancelled { return }
-            try? store.setStatus(track.id, "resolving", "Resolving source")
+            try? self.store.setStatus(track.id, "resolving", "Resolving source")
             if track.origin == "beatport" {
-                await resolveBeatport(settings, track)
+                await self.resolveBeatport(settings, track)
             } else {
-                await resolveSoundCloud(settings, track)
+                await self.resolveSoundCloud(settings, track)
             }
         }
     }
@@ -184,46 +204,50 @@ public actor Reconciler {
 
     func fetchResolved(_ settings: AppSettings, _ sc: SoundCloudClient?) async {
         guard let rows = try? store.inStatus("resolved") else { return }
-        for track in rows {
+        await forEachConcurrent(rows, cap: 3) { track in
             if Task.isCancelled { return }
-            let source = track.chosenSource ?? ""
-            if source == "sc_free_dl" && sc == nil { continue }
-            if source == "ytm"
-                && !FileManager.default.fileExists(atPath: cfg.cookies("youtube").path) {
-                continue
-            }
-            try? store.setStatus(track.id, "fetching", "Downloading via \(source)")
-            do {
-                let file: URL
-                var formatId = "?"
-                switch source {
-                case "ytm":
-                    (file, formatId) = try await YtDlp.downloadYTM(
-                        videoId: track.ytmId ?? "", staging: cfg.stagingDir,
-                        cookies: cfg.cookies("youtube"))
-                    if formatId != YtDlp.premiumFormat {
-                        try? store.record(track.id, "Warning: below 256k floor",
-                                          "Premium cookies missing or expired?")
-                    }
-                case "sc_rip":
-                    (file, formatId) = try await YtDlp.downloadSoundCloud(
-                        url: track.scURL, staging: cfg.stagingDir,
-                        cookies: cfg.cookies("soundcloud"))
-                case "sc_free_dl":
-                    file = try await sc!.downloadOriginal(trackId: track.scId ?? "",
-                                                          to: cfg.stagingDir)
-                    formatId = "original"
-                default:
-                    try? store.setStatus(track.id, "needs_review", "Unknown source", source)
-                    continue
+            await self.fetchOne(track, sc)
+        }
+    }
+
+    func fetchOne(_ track: Track, _ sc: SoundCloudClient?) async {
+        let source = track.chosenSource ?? ""
+        if source == "sc_free_dl" && sc == nil { return }
+        if source == "ytm"
+            && !FileManager.default.fileExists(atPath: cfg.cookies("youtube").path) {
+            return
+        }
+        try? store.setStatus(track.id, "fetching", "Downloading via \(source)")
+        do {
+            let file: URL
+            var formatId = "?"
+            switch source {
+            case "ytm":
+                (file, formatId) = try await YtDlp.downloadYTM(
+                    videoId: track.ytmId ?? "", staging: cfg.stagingDir,
+                    cookies: cfg.cookies("youtube"))
+                if formatId != YtDlp.premiumFormat {
+                    try? store.record(track.id, "Warning: below 256k floor",
+                                      "Premium cookies missing or expired?")
                 }
-                try? store.update(track.id, ["file_path": file.path])
-                try? store.setStatus(track.id, "fetched", "Downloaded (format \(formatId))")
-            } catch {
-                // A stopped cycle leaves the row in fetching; recovery rewinds it.
-                if Task.isCancelled { return }
-                try? store.setStatus(track.id, "needs_review", "Download failed", "\(error)")
+            case "sc_rip":
+                (file, formatId) = try await YtDlp.downloadSoundCloud(
+                    url: track.scURL, staging: cfg.stagingDir,
+                    cookies: cfg.cookies("soundcloud"))
+            case "sc_free_dl":
+                file = try await sc!.downloadOriginal(trackId: track.scId ?? "",
+                                                      to: cfg.stagingDir)
+                formatId = "original"
+            default:
+                try? store.setStatus(track.id, "needs_review", "Unknown source", source)
+                return
             }
+            try? store.update(track.id, ["file_path": file.path])
+            try? store.setStatus(track.id, "fetched", "Downloaded (format \(formatId))")
+        } catch {
+            // A stopped cycle leaves the row in fetching; recovery rewinds it.
+            if Task.isCancelled { return }
+            try? store.setStatus(track.id, "needs_review", "Download failed", "\(error)")
         }
     }
 
@@ -231,52 +255,56 @@ public actor Reconciler {
 
     func normalizeFetched(_ settings: AppSettings) async {
         guard let rows = try? store.inStatus("fetched") else { return }
-        for track in rows {
+        await forEachConcurrent(rows, cap: 2) { track in
             if Task.isCancelled { return }
-            try? store.setStatus(track.id, "normalizing", "Converting and tagging")
-            let title = Matcher.displayTitle(track.title, mix: track.mix)
-            do {
-                guard let raw = track.filePath else { throw DJError("no file recorded") }
-                let converted = try await FFmpeg.convertToTarget(
-                    URL(fileURLWithPath: raw), target: settings.targetFormat)
-                let (suspect, spectrum) = await FFmpeg.spectralSuspect(converted)
-                if suspect {
-                    try? store.record(track.id, "Warning: probable transcode",
-                                      "Spectral cliff (\(spectrum)) — consider buying this one")
-                }
-                let art = await fetchArt(track.artURL)
-                try await FFmpeg.stripAndTag(converted, title: title, artist: track.artist,
-                                             art: art)
-                let dest: URL
-                // A back-matched track replaces its old rip where it lives,
-                // keeping the genre the user already assigned.
-                if let up = track.upgradePath, !up.isEmpty {
-                    let old = URL(fileURLWithPath: up)
-                    if let genre = await FFmpeg.probeTags(old)?.genre, !genre.isEmpty {
-                        try await FFmpeg.writeTags(converted, ["genre": genre])
-                    }
-                    dest = try Self.fileIntoCollection(
-                        converted, collectionDir: old.deletingLastPathComponent(),
-                        title: title, artist: track.artist)
-                    if old.path != dest.path, FileManager.default.fileExists(atPath: old.path) {
-                        try? FileManager.default.removeItem(at: old)
-                        try? store.record(track.id, "Removed superseded file", old.path)
-                    }
-                    try? store.deleteLibraryFiles([up, dest.path])
-                    try? store.deleteFileSource(up)
-                    try? store.update(track.id, ["upgrade_path": nil])
-                } else {
-                    dest = try Self.fileIntoCollection(
-                        converted, collectionDir: URL(fileURLWithPath: settings.collectionDir),
-                        title: title, artist: track.artist)
-                }
-                try? store.update(track.id, ["file_path": dest.path])
-                try? store.markFiledNow(track.id)
-                try? store.setStatus(track.id, "filed", "Filed", dest.path)
-            } catch {
-                if Task.isCancelled { return }
-                try? store.setStatus(track.id, "needs_review", "Normalize failed", "\(error)")
+            await self.normalizeOne(track, settings)
+        }
+    }
+
+    func normalizeOne(_ track: Track, _ settings: AppSettings) async {
+        try? store.setStatus(track.id, "normalizing", "Converting and tagging")
+        let title = Matcher.displayTitle(track.title, mix: track.mix)
+        do {
+            guard let raw = track.filePath else { throw DJError("no file recorded") }
+            let converted = try await FFmpeg.convertToTarget(
+                URL(fileURLWithPath: raw), target: settings.targetFormat)
+            let (suspect, spectrum) = await FFmpeg.spectralSuspect(converted)
+            if suspect {
+                try? store.record(track.id, "Warning: probable transcode",
+                                  "Spectral cliff (\(spectrum)) — consider buying this one")
             }
+            let art = await fetchArt(track.artURL)
+            try await FFmpeg.stripAndTag(converted, title: title, artist: track.artist,
+                                         art: art)
+            let dest: URL
+            // A back-matched track replaces its old rip where it lives,
+            // keeping the genre the user already assigned.
+            if let up = track.upgradePath, !up.isEmpty {
+                let old = URL(fileURLWithPath: up)
+                if let genre = await FFmpeg.probeTags(old)?.genre, !genre.isEmpty {
+                    try await FFmpeg.writeTags(converted, ["genre": genre])
+                }
+                dest = try Self.fileIntoCollection(
+                    converted, collectionDir: old.deletingLastPathComponent(),
+                    title: title, artist: track.artist)
+                if old.path != dest.path, FileManager.default.fileExists(atPath: old.path) {
+                    try? FileManager.default.removeItem(at: old)
+                    try? store.record(track.id, "Removed superseded file", old.path)
+                }
+                try? store.deleteLibraryFiles([up, dest.path])
+                try? store.deleteFileSource(up)
+                try? store.update(track.id, ["upgrade_path": nil])
+            } else {
+                dest = try Self.fileIntoCollection(
+                    converted, collectionDir: URL(fileURLWithPath: settings.collectionDir),
+                    title: title, artist: track.artist)
+            }
+            try? store.update(track.id, ["file_path": dest.path])
+            try? store.markFiledNow(track.id)
+            try? store.setStatus(track.id, "filed", "Filed", dest.path)
+        } catch {
+            if Task.isCancelled { return }
+            try? store.setStatus(track.id, "needs_review", "Normalize failed", "\(error)")
         }
     }
 
