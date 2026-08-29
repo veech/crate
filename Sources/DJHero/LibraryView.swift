@@ -6,6 +6,7 @@ import DJHeroCore
 struct LibRow: Identifiable {
     let file: LibraryFile
     let source: String
+    let sourceURL: String?
 
     var id: String { file.path }
     var title: String { file.title }
@@ -32,10 +33,11 @@ struct LibraryView: View {
     var rows: [LibRow] {
         let sources = model.sourceByPath
         let pending = model.pendingUpgradeByPath
+        let urls = model.sourceURLByPath
         return files.map { file in
             let source = sources[file.path] ?? pending[file.path]
                 ?? (model.matchOutcome[file.path] == "none" ? "No match" : "")
-            return LibRow(file: file, source: source)
+            return LibRow(file: file, source: source, sourceURL: urls[file.path])
         }
         .sorted(using: sortOrder)
     }
@@ -134,9 +136,19 @@ struct LibraryView: View {
             }
             .width(40)
             TableColumn("Source", value: \.source) { row in
-                Text(row.source)
-                    .font(.system(size: 10).monospaced())
-                    .foregroundStyle(row.source == "No match" ? .tertiary : .secondary)
+                HStack(spacing: 4) {
+                    Text(row.source)
+                        .font(.system(size: 10).monospaced())
+                        .foregroundStyle(row.source == "No match" ? .tertiary : .secondary)
+                    if let raw = row.sourceURL, let url = URL(string: raw) {
+                        Button { NSWorkspace.shared.open(url) } label: {
+                            Image(systemName: "arrow.up.right").font(.system(size: 8, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.tertiary)
+                        .help(raw)
+                    }
+                }
             }
             .width(80)
         }
@@ -159,6 +171,9 @@ struct LibraryView: View {
     func contextMenu(_ paths: Set<String>) -> some View {
         if paths.count == 1, let row = rows.first(where: { paths.contains($0.id) }) {
             Button("Play") { model.player.play(row.file, in: rows.map(\.file)) }
+            if let raw = row.sourceURL, let url = URL(string: raw) {
+                Button("Open Source Page") { NSWorkspace.shared.open(url) }
+            }
         }
         if !destinations.isEmpty {
             Menu("Move to") {

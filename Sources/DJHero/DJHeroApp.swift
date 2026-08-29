@@ -129,6 +129,26 @@ final class AppModel {
         }
     }
 
+    /// Where each library file's audio came from, for the row's source link.
+    var sourceURLByPath: [String: String] {
+        var out: [String: String] = [:]
+        for track in tracks {
+            guard let url = Self.sourceURL(track) else { continue }
+            if let path = track.filePath { out[path] = url }
+            if let up = track.upgradePath, !up.isEmpty { out[up] = url }
+        }
+        return out
+    }
+
+    static func sourceURL(_ track: Track) -> String? {
+        if track.chosenSource == "ytm", let id = track.ytmId, !id.isEmpty {
+            return "https://music.youtube.com/watch?v=\(id)"
+        }
+        if !track.scURL.isEmpty { return track.scURL }
+        if let bp = track.bpId { return "https://www.beatport.com/track/-/\(bp)" }
+        return nil
+    }
+
     /// Pipeline state for files still awaiting their in-place upgrade.
     var pendingUpgradeByPath: [String: String] {
         var out: [String: String] = [:]
