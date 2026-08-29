@@ -54,6 +54,9 @@ struct LibraryView: View {
     @State private var scanning = false
     @State private var note: String?
     @State private var keyMonitor: Any?
+    @State private var confirmEmpty = false
+
+    var isTrash: Bool { folder == model.cfg.trashDir.path }
 
     var rows: [LibRow] {
         let sources = model.sourceByPath
@@ -155,6 +158,19 @@ struct LibraryView: View {
                 Text(note).font(.caption).foregroundStyle(.orange).lineLimit(1)
                     .help(note)
             }
+            if isTrash {
+                Button("Empty Trash", role: .destructive) { confirmEmpty = true }
+                    .disabled(files.isEmpty)
+                    .confirmationDialog(
+                        "Permanently delete \(files.count) file(s)?",
+                        isPresented: $confirmEmpty
+                    ) {
+                        Button("Delete \(files.count) File(s)", role: .destructive) {
+                            model.emptyTrash()
+                            Task { await rescan() }
+                        }
+                    }
+            }
             Button("Show in Finder") {
                 NSWorkspace.shared.open(URL(fileURLWithPath: folder, isDirectory: true))
             }
@@ -237,6 +253,10 @@ struct LibraryView: View {
                 model.player.play(row.file, in: rows.map(\.file))
             }
         }
+        .onDeleteCommand {
+            guard !isTrash, !selection.isEmpty else { return }
+            move(selection, to: model.cfg.trashDir.path)
+        }
         .overlay {
             if files.isEmpty && !scanning {
                 Text("No audio files here yet")
@@ -287,6 +307,13 @@ struct LibraryView: View {
         }
         Button("Show in Finder") {
             NSWorkspace.shared.activateFileViewerSelecting(paths.map { URL(fileURLWithPath: $0) })
+        }
+        if !isTrash {
+            Divider()
+            Button(paths.count > 1 ? "Move to Trash (\(paths.count))" : "Move to Trash",
+                   role: .destructive) {
+                move(paths, to: model.cfg.trashDir.path)
+            }
         }
     }
 

@@ -12,7 +12,7 @@ public struct Config: Sendable {
         self.dataDir = dataDir ?? FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("djhero", isDirectory: true)
-        for dir in [authDir, stagingDir, cacheDir] {
+        for dir in [authDir, stagingDir, cacheDir, trashDir] {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
     }
@@ -20,6 +20,7 @@ public struct Config: Sendable {
     public var authDir: URL { dataDir.appendingPathComponent("auth", isDirectory: true) }
     public var stagingDir: URL { dataDir.appendingPathComponent("staging", isDirectory: true) }
     public var cacheDir: URL { dataDir.appendingPathComponent("cache", isDirectory: true) }
+    public var trashDir: URL { dataDir.appendingPathComponent("trash", isDirectory: true) }
     public var dbURL: URL { dataDir.appendingPathComponent("djhero.sqlite3") }
 
     public func cookies(_ service: String) -> URL {

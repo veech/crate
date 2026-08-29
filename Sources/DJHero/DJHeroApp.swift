@@ -222,6 +222,21 @@ final class AppModel {
         return out
     }
 
+    /// Permanent: removes every file in the trash and unlinks its records.
+    func emptyTrash() {
+        let dir = cfg.trashDir
+        if let playing = player.current?.path, playing.hasPrefix(dir.path) {
+            player.stop()
+        }
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [] {
+            let path = dir.appendingPathComponent(name).path
+            try? store.clearSource(forPath: path)
+            try? store.deleteLibraryFiles([path])
+            try? FileManager.default.removeItem(atPath: path)
+        }
+        refresh()
+    }
+
     func clearSource(_ files: [LibraryFile]) {
         for file in files {
             try? store.clearSource(forPath: file.path)

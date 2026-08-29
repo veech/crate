@@ -52,6 +52,8 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
+                    Label("Trash", systemImage: "trash")
+                        .tag("trash")
                 }
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
@@ -69,6 +71,8 @@ struct ContentView: View {
             switch selection {
             case "inbox":
                 LibraryView(model: model, folder: model.collectionDir, name: "Inbox")
+            case "trash":
+                LibraryView(model: model, folder: model.cfg.trashDir.path, name: "Trash")
             case let tag? where tag.hasPrefix("repo:"):
                 let path = String(tag.dropFirst("repo:".count))
                 LibraryView(model: model, folder: path,
