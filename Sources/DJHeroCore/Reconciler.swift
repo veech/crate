@@ -26,6 +26,7 @@ public actor Reconciler {
         await resolveNew(settings)
         await fetchResolved(settings, sc)
         await normalizeFetched(settings)
+        if Task.isCancelled { return }
         try purchasesScan(settings)
     }
 
@@ -75,6 +76,7 @@ public actor Reconciler {
     func resolveNew(_ settings: AppSettings) async {
         guard let rows = try? store.inStatus("new") else { return }
         for track in rows {
+            if Task.isCancelled { return }
             try? store.setStatus(track.id, "resolving", "Resolving source")
             if track.origin == "beatport" {
                 await resolveBeatport(settings, track)
@@ -102,6 +104,8 @@ public actor Reconciler {
         let (artist, title) = await Anthropic.splitTitle(
             model: settings.anthropicModel, raw: track.title, uploader: track.artist,
             key: settings.anthropicApiKey)
+        // A cancelled split falls back to the heuristic; don't let it stick.
+        if Task.isCancelled { return }
         if (artist, title) != (track.artist, track.title) {
             try? store.update(track.id, ["artist": artist, "title": title])
             try? store.record(track.id, "Title split", "\(title) — \(artist)")
@@ -135,6 +139,7 @@ public actor Reconciler {
         do {
             candidates = try await YTMusicClient().searchSongs(query)
         } catch {
+            if Task.isCancelled { return }
             try? store.setStatus(track.id, "needs_review", "YTM search failed", "\(error)")
             return
         }
@@ -156,6 +161,7 @@ public actor Reconciler {
                     return
                 }
             } else {
+                if Task.isCancelled { return }
                 try? store.setStatus(track.id, "needs_review", "Ambiguous YTM match",
                                      Self.encode(result.candidates))
                 return
@@ -179,6 +185,7 @@ public actor Reconciler {
     func fetchResolved(_ settings: AppSettings, _ sc: SoundCloudClient?) async {
         guard let rows = try? store.inStatus("resolved") else { return }
         for track in rows {
+            if Task.isCancelled { return }
             let source = track.chosenSource ?? ""
             if source == "sc_free_dl" && sc == nil { continue }
             if source == "ytm"
@@ -213,6 +220,8 @@ public actor Reconciler {
                 try? store.update(track.id, ["file_path": file.path])
                 try? store.setStatus(track.id, "fetched", "Downloaded (format \(formatId))")
             } catch {
+                // A stopped cycle leaves the row in fetching; recovery rewinds it.
+                if Task.isCancelled { return }
                 try? store.setStatus(track.id, "needs_review", "Download failed", "\(error)")
             }
         }
@@ -223,6 +232,7 @@ public actor Reconciler {
     func normalizeFetched(_ settings: AppSettings) async {
         guard let rows = try? store.inStatus("fetched") else { return }
         for track in rows {
+            if Task.isCancelled { return }
             try? store.setStatus(track.id, "normalizing", "Converting and tagging")
             let title = Matcher.displayTitle(track.title, mix: track.mix)
             do {
@@ -264,6 +274,7 @@ public actor Reconciler {
                 try? store.markFiledNow(track.id)
                 try? store.setStatus(track.id, "filed", "Filed", dest.path)
             } catch {
+                if Task.isCancelled { return }
                 try? store.setStatus(track.id, "needs_review", "Normalize failed", "\(error)")
             }
         }

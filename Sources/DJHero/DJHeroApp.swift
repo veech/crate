@@ -270,18 +270,26 @@ final class AppModel {
         refresh()
     }
 
+    private var cycleTask: Task<Void, Never>?
+
     func runCycle() {
         guard !cycling else { return }
         cycling = true
-        Task {
+        cycleTask = Task {
             defer { cycling = false }
             do {
                 try await reconciler.cycle()
                 lastError = nil
+            } catch is CancellationError {
             } catch {
                 lastError = "\(error)"
             }
             refresh()
         }
+    }
+
+    /// Interrupted stages rewind at the start of the next cycle.
+    func stopCycle() {
+        cycleTask?.cancel()
     }
 }

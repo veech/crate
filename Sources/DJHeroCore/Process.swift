@@ -26,9 +26,21 @@ public enum Binaries {
 }
 
 public enum ProcessRunner {
+    /// Cancellation terminates the child and surfaces as CancellationError.
     public static func run(_ tool: URL, _ args: [String]) async throws -> ProcessResult {
+        let process = Process()
+        let result = try await withTaskCancellationHandler {
+            try await launch(process, tool, args)
+        } onCancel: {
+            if process.isRunning { process.terminate() }
+        }
+        try Task.checkCancellation()
+        return result
+    }
+
+    static func launch(_ process: Process, _ tool: URL,
+                       _ args: [String]) async throws -> ProcessResult {
         try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
             process.executableURL = tool
             process.arguments = args
             var env = ProcessInfo.processInfo.environment

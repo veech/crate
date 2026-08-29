@@ -69,8 +69,11 @@ struct PipelineView: View {
             if model.tracks.contains(where: { activeStatuses.contains($0.status) }) {
                 ProgressView().controlSize(.small)
             }
-            Button(model.cycling ? "Cycling…" : "Run cycle") { model.runCycle() }
-                .disabled(model.cycling)
+            if model.cycling {
+                Button("Stop") { model.stopCycle() }
+            } else {
+                Button("Run cycle") { model.runCycle() }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
