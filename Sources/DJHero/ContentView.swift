@@ -20,8 +20,19 @@ struct ContentView: View {
                     .tag("pipeline")
                 }
                 Section("Library") {
-                    Label("Holding", systemImage: "tray")
-                        .tag("holding")
+                    HStack {
+                        Label("Holding", systemImage: "tray")
+                        Spacer()
+                        if model.holdingCount > 0 {
+                            Text("\(model.holdingCount)")
+                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(.cyan)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.cyan.opacity(0.15), in: Capsule())
+                        }
+                    }
+                    .tag("holding")
                     ForEach(model.repos, id: \.self) { path in
                         Label(URL(fileURLWithPath: path).lastPathComponent, systemImage: "folder")
                             .tag("repo:" + path)
