@@ -1,0 +1,19 @@
+{
+  "fill" : {
+    "solid" : "extended-srgb:0.06,0.09,0.16,1.0"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "icon.png",
+          "name" : "icon"
+        }
+      ]
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [ "watchOS" ],
+    "squares" : "shared"
+  }
+}

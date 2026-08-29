@@ -12,7 +12,16 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Slipmat "$APP/Contents/MacOS/Slipmat"
 cp -R .build/release/slipmat_Slipmat.bundle "$APP/Contents/Resources/"
 cp -R .build/release/GRDB_GRDB.bundle "$APP/Contents/Resources/"
-cp Sources/Slipmat/Resources/AppIcon.icns "$APP/Contents/Resources/"
+
+# Liquid Glass icon (macOS 26+) plus the icns fallback actool renders from
+# it. Absolute paths: actool's ibtoold daemon resolves relative ones against
+# its own working directory, not ours.
+xcrun actool "$PWD/Slipmat.icon" --compile "$PWD/$APP/Contents/Resources" \
+    --output-format human-readable-text --warnings --errors \
+    --platform macosx --minimum-deployment-target 15.0 \
+    --app-icon Slipmat --include-all-app-icons \
+    --output-partial-info-plist "$PWD/dist/actool-partial.plist"
+rm -f dist/actool-partial.plist
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -29,7 +38,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleExecutable</key>
     <string>Slipmat</string>
     <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
+    <string>Slipmat</string>
+    <key>CFBundleIconName</key>
+    <string>Slipmat</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
