@@ -199,7 +199,7 @@ struct LibraryView: View {
                 switch row.upgrade {
                 case .available:
                     Image(systemName: "arrow.up.circle")
-                        .foregroundStyle(.teal)
+                        .foregroundStyle(.cyan)
                         .help("Free DL found — right-click → Upgrade")
                 case .pending(let state):
                     Image(systemName: "hourglass")
@@ -207,7 +207,7 @@ struct LibraryView: View {
                         .help(state)
                 case .lossless:
                     Image(systemName: "checkmark.seal")
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(.tertiary)
                         .help("Already lossless")
                 case .none:
                     EmptyView()
