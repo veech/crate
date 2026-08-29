@@ -21,10 +21,10 @@ struct ContentView: View {
                 }
                 Section("Library") {
                     HStack {
-                        Label("Holding", systemImage: "tray")
+                        Label("Inbox", systemImage: "tray")
                         Spacer()
-                        if model.holdingCount > 0 {
-                            Text("\(model.holdingCount)")
+                        if model.inboxCount > 0 {
+                            Text("\(model.inboxCount)")
                                 .font(.system(size: 10, weight: .semibold).monospacedDigit())
                                 .foregroundStyle(.cyan)
                                 .padding(.horizontal, 6)
@@ -32,7 +32,7 @@ struct ContentView: View {
                                 .background(.cyan.opacity(0.15), in: Capsule())
                         }
                     }
-                    .tag("holding")
+                    .tag("inbox")
                     ForEach(model.repos, id: \.self) { path in
                         Label(URL(fileURLWithPath: path).lastPathComponent, systemImage: "folder")
                             .tag("repo:" + path)
@@ -43,7 +43,7 @@ struct ContentView: View {
                                 }
                                 Button("Remove from Library") {
                                     model.removeRepo(path)
-                                    if selection == "repo:" + path { selection = "holding" }
+                                    if selection == "repo:" + path { selection = "inbox" }
                                 }
                             }
                     }
@@ -67,8 +67,8 @@ struct ContentView: View {
             }
         } detail: {
             switch selection {
-            case "holding":
-                LibraryView(model: model, folder: model.collectionDir, name: "Holding")
+            case "inbox":
+                LibraryView(model: model, folder: model.collectionDir, name: "Inbox")
             case let tag? where tag.hasPrefix("repo:"):
                 let path = String(tag.dropFirst("repo:".count))
                 LibraryView(model: model, folder: path,
@@ -87,7 +87,7 @@ struct ContentView: View {
         panel.prompt = "Add"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if url.path == model.collectionDir {
-            selection = "holding"
+            selection = "inbox"
         } else {
             model.addRepo(url)
             selection = "repo:" + url.path

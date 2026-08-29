@@ -35,7 +35,7 @@ final class AppModel {
     var tracks: [Track] = []
     var repos: [String] = []
     var collectionDir = AppSettings().collectionDir
-    var holdingCount = 0
+    var inboxCount = 0
     var loaded = false
     var cycling = false
     var matching = false
@@ -69,7 +69,7 @@ final class AppModel {
         repos = (try? store.repos()) ?? []
         fileSources = (try? store.allFileSources()) ?? [:]
         collectionDir = ((try? store.loadSettings())?.collectionDir) ?? collectionDir
-        holdingCount = ((try? FileManager.default.contentsOfDirectory(atPath: collectionDir)) ?? [])
+        inboxCount = ((try? FileManager.default.contentsOfDirectory(atPath: collectionDir)) ?? [])
             .filter {
                 !$0.hasPrefix(".") && LibraryScanner.audioExts
                     .contains(URL(fileURLWithPath: $0).pathExtension.lowercased())

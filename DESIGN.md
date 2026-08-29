@@ -13,7 +13,7 @@ Two halves:
    file. Same state machine, same event log, same policies (rip first, buy
    keepers, 256k floor, credential-gated fetches, no external writes).
 2. **Library** — repositories of local folders (genre folders), with
-   **Holding** as the pinned landing repo the pipeline files into. Tracks
+   **Inbox** as the pinned landing repo the pipeline files into. Tracks
    keep their source dossier. Integrated audition player (scrub to judge
    genre), inline tag editing on the selected row (title, artist, genre —
    title/artist edits also rename the file and feed the pipeline record so
@@ -92,7 +92,7 @@ as-is since it is existing normalize behavior.
 
 1. Core port compiling + djheroctl auth/cycle verified against live services.
 2. SwiftUI shell: pipeline sections, run cycle, settings (cookies paste).
-3. Library: repos + probe cache, Holding, inline tag editing (title, artist,
+3. Library: repos + probe cache, Inbox, inline tag editing (title, artist,
    genre — written to the file; name edits rename), move/multi-select,
    context menu, audition player with scrubbing (AVAudioPlayer). Done.
 4. Gate flow UI: open gate + select the downloaded file (gates rarely

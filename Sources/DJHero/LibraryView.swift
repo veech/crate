@@ -294,7 +294,7 @@ struct LibraryView: View {
     }
 
     var destinations: [(path: String, name: String)] {
-        var all = [(path: model.collectionDir, name: "Holding")]
+        var all = [(path: model.collectionDir, name: "Inbox")]
         all += model.repos.map { (path: $0, name: URL(fileURLWithPath: $0).lastPathComponent) }
         return all.filter { $0.path != folder }
     }
