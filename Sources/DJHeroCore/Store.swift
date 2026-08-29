@@ -113,6 +113,14 @@ public final class Store: Sendable {
                   duration_s REAL,
                   art_path TEXT
                 );
+                CREATE TABLE IF NOT EXISTS file_sources (
+                  path TEXT PRIMARY KEY,
+                  sc_id TEXT,
+                  page_url TEXT,
+                  gate_url TEXT,
+                  downloadable INTEGER,
+                  art_url TEXT
+                );
                 """)
             // Databases created before the column existed pick it up here.
             _ = try? db.execute(sql: "ALTER TABLE tracks ADD COLUMN upgrade_path TEXT")
@@ -266,16 +274,15 @@ public final class Store: Sendable {
         }
     }
 
-    /// A library file matched back to SoundCloud enters the pipeline pre-resolved
-    /// (title and artist are already the curated 1:1 names), aimed at upgrading
-    /// the existing file in place. Returns nil when the SC track is already known.
-    public func insertBackMatch(_ t: SCTrack, title: String, artist: String,
-                                upgradePath: String) throws -> Int64? {
+    /// A discovered source enters the pipeline pre-resolved (title and artist
+    /// are already the curated 1:1 names), aimed at upgrading the existing file
+    /// in place. Returns nil when the SC track is already known.
+    public func insertBackMatch(_ s: FileSource, title: String, artist: String,
+                                durationS: Int, upgradePath: String) throws -> Int64? {
         try dbQueue.write { db in
             if try Row.fetchOne(db, sql: "SELECT id FROM tracks WHERE sc_id = ?",
-                                arguments: [t.scId]) != nil { return nil }
-            let gate = Gates.isGate(purchaseURL: t.purchaseURL, purchaseTitle: t.purchaseTitle)
-            let status = t.downloadable ? "resolved" : "held_gate"
+                                arguments: [s.scId]) != nil { return nil }
+            let status = s.downloadable ? "resolved" : "held_gate"
             try db.execute(
                 sql: """
                     INSERT INTO tracks (status, origin, sc_id, sc_url, title, artist, mix,
@@ -283,15 +290,61 @@ public final class Store: Sendable {
                                         chosen_source, upgrade_path)
                     VALUES (?, 'soundcloud', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?)
                     """,
-                arguments: [status, t.scId, t.scURL, title, artist, t.durationS, t.artURL,
-                            gate ? t.purchaseURL : "", t.downloadable ? 1 : 0,
-                            t.downloadable ? "sc_free_dl" : nil, upgradePath])
+                arguments: [status, s.scId, s.pageURL, title, artist, durationS, s.artURL,
+                            s.gateURL, s.downloadable ? 1 : 0,
+                            s.downloadable ? "sc_free_dl" : nil, upgradePath])
             let id = db.lastInsertedRowID
             try db.execute(
                 sql: "INSERT INTO track_events (track_id, event, detail) VALUES (?, ?, ?)",
-                arguments: [id, "Matched from library",
+                arguments: [id, "Upgrade requested",
                             URL(fileURLWithPath: upgradePath).lastPathComponent])
             return id
+        }
+    }
+
+    /// Send a filed track back through the pipeline to upgrade its own file.
+    public func requeueUpgrade(_ trackId: Int64, path: String, native: Bool) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE tracks SET upgrade_path = ?, chosen_source = ?, status = ?"
+                    + " WHERE id = ?",
+                arguments: [path, native ? "sc_free_dl" : nil,
+                            native ? "resolved" : "held_gate", trackId])
+            try db.execute(
+                sql: "INSERT INTO track_events (track_id, event) VALUES (?, 'Upgrade requested')",
+                arguments: [trackId])
+        }
+    }
+
+    // MARK: discovered sources
+
+    public func allFileSources() throws -> [String: FileSource] {
+        try dbQueue.read { db in
+            var out: [String: FileSource] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT * FROM file_sources") {
+                out[row["path"]] = FileSource(row: row)
+            }
+            return out
+        }
+    }
+
+    public func saveFileSource(_ path: String, _ s: FileSource) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO file_sources (path, sc_id, page_url, gate_url, downloadable, art_url)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(path) DO UPDATE SET sc_id = excluded.sc_id,
+                      page_url = excluded.page_url, gate_url = excluded.gate_url,
+                      downloadable = excluded.downloadable, art_url = excluded.art_url
+                    """,
+                arguments: [path, s.scId, s.pageURL, s.gateURL, s.downloadable ? 1 : 0, s.artURL])
+        }
+    }
+
+    public func deleteFileSource(_ path: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM file_sources WHERE path = ?", arguments: [path])
         }
     }
 
@@ -403,6 +456,7 @@ public final class Store: Sendable {
                 try db.execute(sql: "DELETE FROM track_events WHERE track_id = ?", arguments: [id])
                 try db.execute(sql: "DELETE FROM tracks WHERE id = ?", arguments: [id])
             }
+            try db.execute(sql: "DELETE FROM file_sources WHERE path = ?", arguments: [path])
         }
     }
 
@@ -412,6 +466,10 @@ public final class Store: Sendable {
             try db.execute(sql: "UPDATE library_files SET path = ? WHERE path = ?",
                            arguments: [new, old])
             try db.execute(sql: "UPDATE tracks SET file_path = ? WHERE file_path = ?",
+                           arguments: [new, old])
+            try db.execute(sql: "UPDATE tracks SET upgrade_path = ? WHERE upgrade_path = ?",
+                           arguments: [new, old])
+            try db.execute(sql: "UPDATE file_sources SET path = ? WHERE path = ?",
                            arguments: [new, old])
         }
     }

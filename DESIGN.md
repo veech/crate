@@ -19,9 +19,13 @@ Two halves:
    title/artist edits also rename the file and feed the pipeline record so
    dedupe matches), multi-select, move between repos, context-menu actions.
    Imported files without source info are first-class rows, and can be
-   back-matched to SoundCloud (search + duration gate + LLM adjudication) to
-   find a free-DL upload; a hit enters the pipeline with `upgrade_path` set,
-   and normalize replaces the old rip in place, keeping folder and genre.
+   back-matched to SoundCloud (search + duration gate + LLM adjudication).
+   Find Source only records the discovery (`file_sources`); the row's
+   icon-only Upgrade column then shows availability (lossy file + a source
+   with a download), and the explicit Upgrade action enters the pipeline
+   with `upgrade_path` set — normalize replaces the old rip in place,
+   keeping folder and genre. The Source column stays pure identity:
+   service plus page link.
 
 Post-MVP (explicitly out of the MVP): the Analyze stage — perceptual quality
 rating, key (Camelot), BPM. The pipeline's spectral transcode warning ports

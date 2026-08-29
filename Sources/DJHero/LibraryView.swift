@@ -2,11 +2,21 @@ import AppKit
 import SwiftUI
 import DJHeroCore
 
+let losslessExts: Set<String> = ["flac", "wav", "aiff", "aif"]
+
+enum UpgradeState {
+    case available
+    case pending(String)
+    case lossless
+    case none
+}
+
 /// A library file joined with its pipeline provenance, shaped for the table.
 struct LibRow: Identifiable {
     let file: LibraryFile
     let source: String
     let sourceURL: String?
+    let upgrade: UpgradeState
 
     var id: String { file.path }
     var title: String { file.title }
@@ -14,6 +24,20 @@ struct LibRow: Identifiable {
     var genre: String { file.genre }
     var durationS: Double { file.durationS }
     var ext: String { URL(fileURLWithPath: file.path).pathExtension.uppercased() }
+
+    var isUpgradeable: Bool {
+        if case .available = upgrade { return true }
+        return false
+    }
+
+    var upgradeRank: Int {
+        switch upgrade {
+        case .available: 3
+        case .pending: 2
+        case .none: 1
+        case .lossless: 0
+        }
+    }
 }
 
 // Table cells and menus render in bridged AppKit hosts where the observable
@@ -34,11 +58,30 @@ struct LibraryView: View {
         let sources = model.sourceByPath
         let pending = model.pendingUpgradeByPath
         let urls = model.sourceURLByPath
+        let discovered = model.fileSources
+        var filedOffersDL: [String: Bool] = [:]
+        for track in model.tracks where track.status == "filed" && track.origin == "soundcloud" {
+            if let path = track.filePath {
+                filedOffersDL[path] = !track.gateURL.isEmpty || track.scDownloadable
+            }
+        }
         return files.map { file in
-            let note = model.matchOutcome[file.path]
-            let source = sources[file.path] ?? pending[file.path] ?? note?.label ?? ""
-            return LibRow(file: file, source: source,
-                          sourceURL: urls[file.path] ?? note?.url)
+            let src = discovered[file.path]
+            let upgrade: UpgradeState
+            if let state = pending[file.path] {
+                upgrade = .pending(state)
+            } else if losslessExts.contains(URL(fileURLWithPath: file.path)
+                          .pathExtension.lowercased()) {
+                upgrade = .lossless
+            } else if filedOffersDL[file.path] == true || src?.offersDL == true {
+                upgrade = .available
+            } else {
+                upgrade = .none
+            }
+            return LibRow(file: file,
+                          source: sources[file.path] ?? (src != nil ? "SC" : ""),
+                          sourceURL: urls[file.path] ?? src?.pageURL,
+                          upgrade: upgrade)
         }
         .sorted(using: sortOrder)
     }
@@ -95,6 +138,8 @@ struct LibraryView: View {
                 Text("Matching \(model.matchProgress.done)/\(model.matchProgress.total)"
                     + " · \(model.matchProgress.hits) hits")
                     .font(.caption).foregroundStyle(.secondary)
+            } else if let summary = model.matchSummary {
+                Text(summary).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             if let note {
@@ -136,12 +181,30 @@ struct LibraryView: View {
                     .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
             }
             .width(40)
+            TableColumn("Upgrade", value: \.upgradeRank) { row in
+                switch row.upgrade {
+                case .available:
+                    Image(systemName: "arrow.up.circle")
+                        .foregroundStyle(.cyan)
+                        .help("Free DL found — right-click → Upgrade")
+                case .pending(let state):
+                    Image(systemName: "hourglass")
+                        .foregroundStyle(.orange)
+                        .help(state)
+                case .lossless:
+                    Image(systemName: "checkmark.seal")
+                        .foregroundStyle(.tertiary)
+                        .help("Already lossless")
+                case .none:
+                    EmptyView()
+                }
+            }
+            .width(56)
             TableColumn("Source", value: \.source) { row in
                 HStack(spacing: 4) {
                     Text(row.source)
                         .font(.system(size: 10).monospaced())
-                        .foregroundStyle(["No match", "No DL"].contains(row.source)
-                                         ? .tertiary : .secondary)
+                        .foregroundStyle(.secondary)
                     if let raw = row.sourceURL, let url = URL(string: raw) {
                         IconButton(systemName: "arrow.up.right", size: 8, weight: .bold,
                                    hit: 20) { NSWorkspace.shared.open(url) }
@@ -150,7 +213,7 @@ struct LibraryView: View {
                     }
                 }
             }
-            .width(80)
+            .width(56)
         }
         .contextMenu(forSelectionType: String.self) { paths in
             contextMenu(paths)
@@ -175,6 +238,12 @@ struct LibraryView: View {
                 Button("Open Source Page") { NSWorkspace.shared.open(url) }
             }
         }
+        let upgradeables = rows.filter { paths.contains($0.id) && $0.isUpgradeable }
+        if !upgradeables.isEmpty {
+            Button(upgradeables.count > 1 ? "Upgrade (\(upgradeables.count))" : "Upgrade") {
+                model.upgrade(upgradeables.map(\.file))
+            }
+        }
         if !destinations.isEmpty {
             Menu("Move to") {
                 ForEach(destinations, id: \.path) { dest in
@@ -193,7 +262,7 @@ struct LibraryView: View {
         }
         let sourced = files.filter {
             paths.contains($0.path)
-                && (pipelinePaths.contains($0.path) || model.matchOutcome[$0.path] != nil)
+                && (pipelinePaths.contains($0.path) || model.fileSources[$0.path] != nil)
         }
         if !sourced.isEmpty {
             Button(sourced.count > 1 ? "Clear Source Info (\(sourced.count))"

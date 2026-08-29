@@ -38,6 +38,35 @@ public struct LibraryFile: Identifiable, Sendable, Hashable {
     }
 }
 
+/// A discovered SoundCloud source for a library file, saved by Find Source;
+/// the Upgrade action turns it into a pipeline entry.
+public struct FileSource: Sendable {
+    public var scId: String
+    public var pageURL: String
+    public var gateURL: String
+    public var downloadable: Bool
+    public var artURL: String
+
+    public var offersDL: Bool { downloadable || !gateURL.isEmpty }
+
+    public init(scId: String, pageURL: String, gateURL: String,
+                downloadable: Bool, artURL: String) {
+        self.scId = scId
+        self.pageURL = pageURL
+        self.gateURL = gateURL
+        self.downloadable = downloadable
+        self.artURL = artURL
+    }
+
+    init(row: Row) {
+        scId = row["sc_id"] ?? ""
+        pageURL = row["page_url"] ?? ""
+        gateURL = row["gate_url"] ?? ""
+        downloadable = (row["downloadable"] ?? 0) != 0
+        artURL = row["art_url"] ?? ""
+    }
+}
+
 /// Reads library folders straight from disk; the DB only caches probe results
 /// keyed by (path, mtime, size) so a rescan is cheap.
 public struct LibraryScanner: Sendable {

@@ -23,11 +23,6 @@ struct DJHeroApp: App {
     }
 }
 
-struct MatchNote: Sendable {
-    let label: String
-    let url: String?
-}
-
 @Observable
 @MainActor
 final class AppModel {
@@ -44,7 +39,8 @@ final class AppModel {
     var cycling = false
     var matching = false
     var matchProgress: (done: Int, total: Int, hits: Int) = (0, 0, 0)
-    var matchOutcome: [String: MatchNote] = [:]
+    var matchSummary: String?
+    var fileSources: [String: FileSource] = [:]
     var lastError: String?
 
     init() {
@@ -70,6 +66,7 @@ final class AppModel {
     func refresh() {
         tracks = (try? store.allTracks()) ?? []
         repos = (try? store.repos()) ?? []
+        fileSources = (try? store.allFileSources()) ?? [:]
         collectionDir = ((try? store.loadSettings())?.collectionDir) ?? collectionDir
         loaded = true
     }
@@ -79,8 +76,10 @@ final class AppModel {
     var sourceByPath: [String: String] {
         var out: [String: String] = [:]
         for track in tracks {
-            guard let path = track.filePath else { continue }
-            out[path] = Self.serviceLabel(track)
+            let label = Self.serviceLabel(track)
+            guard !label.isEmpty else { continue }
+            if let path = track.filePath { out[path] = label }
+            if let up = track.upgradePath, !up.isEmpty { out[up] = label }
         }
         return out
     }
@@ -103,14 +102,13 @@ final class AppModel {
         refresh()
     }
 
-    /// Search SoundCloud for uploads of these files that offer a download; hits
-    /// enter the pipeline aimed at upgrading the old rip in place. Outcomes show
-    /// per row in the Source column as the sweep progresses.
+    /// Search SoundCloud for these files' uploads and record what was found;
+    /// nothing enters the pipeline until the row's explicit Upgrade action.
     func findSources(_ files: [LibraryFile]) {
         guard !matching, !files.isEmpty else { return }
         matching = true
         matchProgress = (0, files.count, 0)
-        for file in files { matchOutcome.removeValue(forKey: file.path) }
+        matchSummary = nil
         Task {
             defer { matching = false }
             let client: SoundCloudClient
@@ -122,6 +120,7 @@ final class AppModel {
                 return
             }
             let settings = (try? store.loadSettings()) ?? AppSettings()
+            var noDL = 0, misses = 0
             for (i, file) in files.enumerated() {
                 let outcome = await BackMatch.find(
                     title: file.title, artist: file.artist,
@@ -129,24 +128,56 @@ final class AppModel {
                     client: client, settings: settings)
                 switch outcome {
                 case .match(let sc):
-                    if let id = try? store.insertBackMatch(
-                           sc, title: file.title, artist: file.artist,
-                           upgradePath: file.path), id != nil {
-                        matchProgress.hits += 1
-                        refresh()
-                    } else {
-                        matchOutcome[file.path] = MatchNote(label: "No match", url: sc.scURL)
-                    }
+                    let gate = Gates.isGate(purchaseURL: sc.purchaseURL,
+                                            purchaseTitle: sc.purchaseTitle)
+                    try? store.saveFileSource(file.path, FileSource(
+                        scId: sc.scId, pageURL: sc.scURL,
+                        gateURL: gate ? sc.purchaseURL : "",
+                        downloadable: sc.downloadable, artURL: sc.artURL))
+                    matchProgress.hits += 1
+                    refresh()
                 case .noDownload(let sc):
-                    matchOutcome[file.path] = MatchNote(label: "No DL", url: sc.scURL)
+                    try? store.saveFileSource(file.path, FileSource(
+                        scId: sc.scId, pageURL: sc.scURL, gateURL: "",
+                        downloadable: false, artURL: sc.artURL))
+                    noDL += 1
+                    refresh()
                 case .none:
-                    matchOutcome[file.path] = MatchNote(label: "No match", url: nil)
+                    misses += 1
                 }
                 matchProgress.done = i + 1
                 try? await Task.sleep(for: .seconds(1))
             }
             refresh()
-            if matchProgress.hits > 0 { runCycle() }
+            matchSummary = "Checked \(files.count): \(matchProgress.hits) upgradeable,"
+                + " \(noDL) found without DL, \(misses) no match"
+        }
+    }
+
+    /// Queue the found download: gates hold for the click-through, native
+    /// downloads fetch on the cycle this starts.
+    func upgrade(_ files: [LibraryFile]) {
+        var started = 0
+        for file in files {
+            if let track = tracks.first(where: {
+                   $0.filePath == file.path && $0.status == "filed"
+               }), track.origin == "soundcloud",
+               !track.gateURL.isEmpty || track.scDownloadable {
+                try? store.requeueUpgrade(track.id, path: file.path,
+                                          native: track.scDownloadable)
+                started += 1
+            } else if let src = fileSources[file.path], src.offersDL,
+                      let id = try? store.insertBackMatch(
+                          src, title: file.title, artist: file.artist,
+                          durationS: Int(file.durationS.rounded()),
+                          upgradePath: file.path),
+                      id != nil {
+                started += 1
+            }
+        }
+        if started > 0 {
+            refresh()
+            runCycle()
         }
     }
 
@@ -187,7 +218,6 @@ final class AppModel {
     func clearSource(_ files: [LibraryFile]) {
         for file in files {
             try? store.clearSource(forPath: file.path)
-            matchOutcome.removeValue(forKey: file.path)
         }
         refresh()
     }

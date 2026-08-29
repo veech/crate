@@ -253,6 +253,7 @@ public actor Reconciler {
                         try? store.record(track.id, "Removed superseded file", old.path)
                     }
                     try? store.deleteLibraryFiles([up, dest.path])
+                    try? store.deleteFileSource(up)
                     try? store.update(track.id, ["upgrade_path": nil])
                 } else {
                     dest = try Self.fileIntoCollection(
