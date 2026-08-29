@@ -141,12 +141,10 @@ struct LibraryView: View {
                         .font(.system(size: 10).monospaced())
                         .foregroundStyle(row.source == "No match" ? .tertiary : .secondary)
                     if let raw = row.sourceURL, let url = URL(string: raw) {
-                        Button { NSWorkspace.shared.open(url) } label: {
-                            Image(systemName: "arrow.up.right").font(.system(size: 8, weight: .bold))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.tertiary)
-                        .help(raw)
+                        IconButton(systemName: "arrow.up.right", size: 8, weight: .bold,
+                                   hit: 20) { NSWorkspace.shared.open(url) }
+                            .foregroundStyle(.tertiary)
+                            .help(raw)
                     }
                 }
             }

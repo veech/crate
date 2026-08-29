@@ -121,25 +121,11 @@ struct PlayerBar: View {
                     .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
             }
             .frame(width: 200, alignment: .leading)
-            Button { player.previous() } label: {
-                Image(systemName: "backward.fill")
-                    .font(.system(size: 11))
-                    .frame(width: 18)
-            }
-            .buttonStyle(.plain)
-            Button { player.toggle() } label: {
-                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 15))
-                    .frame(width: 24)
-            }
-            .buttonStyle(.plain)
-            Button { player.next() } label: {
-                Image(systemName: "forward.fill")
-                    .font(.system(size: 11))
-                    .frame(width: 18)
-            }
-            .buttonStyle(.plain)
-            .disabled(!player.hasNext)
+            IconButton(systemName: "backward.fill", size: 11) { player.previous() }
+            IconButton(systemName: player.isPlaying ? "pause.fill" : "play.fill",
+                       size: 15, hit: 30) { player.toggle() }
+            IconButton(systemName: "forward.fill", size: 11) { player.next() }
+                .disabled(!player.hasNext)
             Text(timestamp(scrub ?? player.position))
                 .font(.system(size: 10).monospacedDigit()).foregroundStyle(.secondary)
             Slider(
@@ -157,10 +143,8 @@ struct PlayerBar: View {
             .controlSize(.small)
             Text(timestamp(player.duration))
                 .font(.system(size: 10).monospacedDigit()).foregroundStyle(.secondary)
-            Button { player.stop() } label: {
-                Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-            }
-            .buttonStyle(.plain)
+            IconButton(systemName: "xmark.circle.fill") { player.stop() }
+                .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -171,6 +155,26 @@ struct PlayerBar: View {
     func timestamp(_ t: Double) -> String {
         let s = Int(t.rounded())
         return String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+/// A bare glyph is only clickable on its own pixels; this pads every icon
+/// button out to a real hit target.
+struct IconButton: View {
+    let systemName: String
+    var size: CGFloat = 13
+    var weight: Font.Weight = .regular
+    var hit: CGFloat = 26
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: size, weight: weight))
+                .frame(width: hit, height: hit)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
