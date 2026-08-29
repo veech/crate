@@ -26,6 +26,7 @@ struct LibraryView: View {
     @State private var sortOrder = [KeyPathComparator(\LibRow.title)]
     @State private var scanning = false
     @State private var note: String?
+    @State private var keyMonitor: Any?
 
     var rows: [LibRow] {
         let sources = model.sourceByPath
@@ -47,6 +48,32 @@ struct LibraryView: View {
             note = nil
             await rescan()
         }
+        .onAppear {
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                MainActor.assumeIsolated { handleSpace(event) }
+            }
+        }
+        .onDisappear {
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
+        }
+    }
+
+    /// Space plays the selected row or toggles the player; typing stays typing.
+    func handleSpace(_ event: NSEvent) -> NSEvent? {
+        guard event.charactersIgnoringModifiers == " ",
+              event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
+              !(event.window?.firstResponder is NSTextView) else { return event }
+        let ordered = rows
+        if let target = ordered.first(where: { selection.contains($0.id) }),
+           target.file.path != model.player.current?.path {
+            model.player.play(target.file, in: ordered.map(\.file))
+        } else if model.player.current != nil {
+            model.player.toggle()
+        } else {
+            return event
+        }
+        return nil
     }
 
     var header: some View {
@@ -105,7 +132,7 @@ struct LibraryView: View {
             contextMenu(paths)
         } primaryAction: { paths in
             if let row = rows.first(where: { paths.contains($0.id) }) {
-                model.player.play(row.file)
+                model.player.play(row.file, in: rows.map(\.file))
             }
         }
         .overlay {
@@ -118,8 +145,8 @@ struct LibraryView: View {
 
     @ViewBuilder
     func contextMenu(_ paths: Set<String>) -> some View {
-        if paths.count == 1, let file = files.first(where: { paths.contains($0.path) }) {
-            Button("Play") { model.player.play(file) }
+        if paths.count == 1, let row = rows.first(where: { paths.contains($0.id) }) {
+            Button("Play") { model.player.play(row.file, in: rows.map(\.file)) }
         }
         if !destinations.isEmpty {
             Menu("Move to") {

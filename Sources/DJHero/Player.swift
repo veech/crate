@@ -9,10 +9,13 @@ final class PlayerModel {
     private(set) var isPlaying = false
     private(set) var duration: Double = 0
     private(set) var position: Double = 0
+    private(set) var queue: [LibraryFile] = []
     private var player: AVAudioPlayer?
     private var ticker: Task<Void, Never>?
 
-    func play(_ file: LibraryFile) {
+    /// The queue is the folder's rows as sorted when playback started.
+    func play(_ file: LibraryFile, in newQueue: [LibraryFile]? = nil) {
+        if let newQueue { queue = newQueue }
         ticker?.cancel()
         player?.stop()
         guard let loaded = try? AVAudioPlayer(contentsOf: URL(fileURLWithPath: file.path)) else {
@@ -37,8 +40,39 @@ final class PlayerModel {
         guard let player else { return }
         position = player.currentTime
         if isPlaying && !player.isPlaying {
-            isPlaying = false
-            position = duration
+            if hasNext {
+                next()
+            } else {
+                isPlaying = false
+                position = duration
+            }
+        }
+    }
+
+    private var currentIndex: Int? {
+        guard let current else { return nil }
+        return queue.firstIndex { $0.path == current.path }
+    }
+
+    var hasNext: Bool {
+        guard let i = currentIndex else { return false }
+        return i + 1 < queue.count
+    }
+
+    func next() {
+        guard let i = currentIndex, i + 1 < queue.count else { return }
+        play(queue[i + 1])
+    }
+
+    /// Deep into a track it restarts; near the start it goes back one.
+    func previous() {
+        guard current != nil else { return }
+        if position > 3 {
+            seek(0)
+        } else if let i = currentIndex, i > 0 {
+            play(queue[i - 1])
+        } else {
+            seek(0)
         }
     }
 
@@ -87,12 +121,25 @@ struct PlayerBar: View {
                     .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
             }
             .frame(width: 200, alignment: .leading)
+            Button { player.previous() } label: {
+                Image(systemName: "backward.fill")
+                    .font(.system(size: 11))
+                    .frame(width: 18)
+            }
+            .buttonStyle(.plain)
             Button { player.toggle() } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 15))
                     .frame(width: 24)
             }
             .buttonStyle(.plain)
+            Button { player.next() } label: {
+                Image(systemName: "forward.fill")
+                    .font(.system(size: 11))
+                    .frame(width: 18)
+            }
+            .buttonStyle(.plain)
+            .disabled(!player.hasNext)
             Text(timestamp(scrub ?? player.position))
                 .font(.system(size: 10).monospacedDigit()).foregroundStyle(.secondary)
             Slider(
