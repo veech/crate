@@ -17,7 +17,6 @@ let stages: [StageSpec] = [
     StageSpec(id: "needs_review", label: "Needs Review", color: .red,
               statuses: ["needs_review"]),
     StageSpec(id: "buy_list", label: "Buy List", color: .purple, statuses: ["buy_list"]),
-    StageSpec(id: "filed", label: "Filed", color: .green, statuses: ["filed"]),
 ]
 
 let activeStatuses: Set<String> = ["resolving", "fetching", "normalizing"]
@@ -79,7 +78,7 @@ struct PipelineView: View {
 
     func section(_ stage: StageSpec) -> some View {
         let rows = model.tracks.filter { stage.statuses.contains($0.status) }
-        let shown = Array(rows.prefix(stage.id == "filed" ? 30 : 500))
+        let shown = Array(rows.prefix(500))
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Circle().fill(stage.color).frame(width: 7, height: 7)
@@ -105,10 +104,6 @@ struct PipelineView: View {
                 }
                 .padding(.vertical, 4)
                 .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
-                if stage.id == "filed" && rows.count > 30 {
-                    Text("Showing the latest 30 of \(rows.count)")
-                        .font(.caption).foregroundStyle(.tertiary)
-                }
             }
         }
     }
