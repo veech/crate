@@ -23,6 +23,7 @@ public actor Reconciler {
                                        cacheDir: cfg.cacheDir)
         await pollBeatport(settings)
         await pollSoundCloud(settings, sc)
+        await pollYouTube(settings)
         await resolveNew(settings)
         await fetchResolved(settings, sc)
         await normalizeFetched(settings)
@@ -91,6 +92,18 @@ public actor Reconciler {
         }
     }
 
+    func pollYouTube(_ settings: AppSettings) async {
+        guard !settings.ytQueuePlaylist.isEmpty else { return }
+        do {
+            for item in try await YtDlp.playlistItems(settings.ytQueuePlaylist,
+                                                      cookies: cfg.cookies("youtube")) {
+                _ = try store.upsertYouTube(item)
+            }
+        } catch {
+            print("youtube poll failed: \(error)")
+        }
+    }
+
     // MARK: resolve
 
     func resolveNew(_ settings: AppSettings) async {
@@ -98,10 +111,10 @@ public actor Reconciler {
         await forEachConcurrent(rows, cap: 4) { track in
             if Task.isCancelled { return }
             try? self.store.setStatus(track.id, "resolving", "Resolving source")
-            if track.origin == "beatport" {
-                await self.resolveBeatport(settings, track)
-            } else {
-                await self.resolveSoundCloud(settings, track)
+            switch track.origin {
+            case "beatport": await self.resolveBeatport(settings, track)
+            case "youtube": await self.resolveYouTube(settings, track)
+            default: await self.resolveSoundCloud(settings, track)
             }
         }
     }
@@ -117,6 +130,25 @@ public actor Reconciler {
     func resolveBeatport(_ settings: AppSettings, _ track: Track) async {
         if (try? fileDuplicate(track)) == true { return }
         await resolveViaYTM(settings, track)
+    }
+
+    /// A YouTube queue item is its own resolution: the video is the source.
+    func resolveYouTube(_ settings: AppSettings, _ track: Track) async {
+        var track = track
+        let uploader = track.artist.replacingOccurrences(of: " - Topic", with: "")
+        let (artist, title) = await Anthropic.splitTitle(
+            model: settings.anthropicModel, raw: track.title, uploader: uploader,
+            key: settings.anthropicApiKey)
+        if Task.isCancelled { return }
+        if (artist, title) != (track.artist, track.title) {
+            try? store.update(track.id, ["artist": artist, "title": title])
+            try? store.record(track.id, "Title split", "\(title) — \(artist)")
+            track.artist = artist
+            track.title = title
+        }
+        if (try? fileDuplicate(track)) == true { return }
+        try? store.update(track.id, ["chosen_source": "ytm"])
+        try? store.setStatus(track.id, "resolved", "From YouTube queue")
     }
 
     func resolveSoundCloud(_ settings: AppSettings, _ track: Track) async {

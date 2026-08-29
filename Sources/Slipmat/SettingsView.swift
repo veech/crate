@@ -125,6 +125,11 @@ struct SettingsView: View {
     var youtubeTab: some View {
         Form {
             statusRow("youtube")
+            TextField("Queue playlist URL", text: $settings.ytQueuePlaylist)
+            Button("Save") {
+                save(["yt_queue_playlist": settings.ytQueuePlaylist], note: "youtube")
+            }
+            Divider()
             cookieControls("youtube", steps:
                 "In your dedicated djcopilot Chrome profile: sign in to music.youtube.com "
                 + "with the Premium account, export with Get cookies.txt LOCALLY, copy, "

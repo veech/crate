@@ -21,6 +21,40 @@ public enum YtDlp {
         return JSON.dict(try HTTP.json(result.stdout))
     }
 
+    public struct YTPlaylistItem: Sendable {
+        public let videoId: String
+        public let rawTitle: String
+        public let uploader: String
+        public let durationS: Int
+        public let artURL: String
+    }
+
+    /// Flat listing of a playlist; cookies unlock private ones.
+    public static func playlistItems(_ playlist: String,
+                                     cookies: URL?) async throws -> [YTPlaylistItem] {
+        let url = playlist.contains("http") ? playlist
+            : "https://music.youtube.com/playlist?list=\(playlist)"
+        let tool = try Binaries.find("yt-dlp")
+        let result = try await ProcessRunner.run(
+            tool, commonArgs(cookies: cookies) + ["--flat-playlist", "-J", url])
+        guard result.status == 0, !result.stdout.isEmpty else {
+            throw DJError(Self.tail(result.stderrText))
+        }
+        let root = JSON.dict(try HTTP.json(result.stdout))
+        return JSON.array(root["entries"]).map(JSON.dict).compactMap { entry in
+            guard let id = JSON.string(entry["id"]) else { return nil }
+            let thumbs = JSON.array(entry["thumbnails"]).map(JSON.dict)
+            let art = thumbs.last.flatMap { JSON.string($0["url"]) }
+                ?? "https://i.ytimg.com/vi/\(id)/hqdefault.jpg"
+            return YTPlaylistItem(
+                videoId: id,
+                rawTitle: JSON.string(entry["title"]) ?? id,
+                uploader: JSON.string(entry["channel"]) ?? JSON.string(entry["uploader"]) ?? "",
+                durationS: JSON.int(entry["duration"]) ?? 0,
+                artURL: art)
+        }
+    }
+
     /// Premium cookies expose format 141 on YTM tracks; free ones do not.
     public static func probePremium(cookies: URL) async throws -> Bool {
         let info = try await info(url: "https://music.youtube.com/watch?v=dQw4w9WgXcQ",

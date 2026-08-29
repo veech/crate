@@ -53,6 +53,7 @@ public struct AppSettings: Sendable {
     public init() {}
 
     public var scQueuePlaylist = "Queue"
+    public var ytQueuePlaylist = ""
     public var bpKeepersPlaylist = ""
     public var targetFormat = "flac"
     public var pollMinutes = 0
@@ -248,6 +249,27 @@ public final class Store: Sendable {
             let id = db.lastInsertedRowID
             try db.execute(
                 sql: "INSERT INTO track_events (track_id, event) VALUES (?, 'Seen in Beatport playlist')",
+                arguments: [id])
+            return id
+        }
+    }
+
+    /// Insert a YouTube queue item if its video is unseen anywhere — a track
+    /// already fetched via YTM for another origin is the same recording.
+    public func upsertYouTube(_ t: YtDlp.YTPlaylistItem) throws -> Int64? {
+        try dbQueue.write { db in
+            if try Row.fetchOne(db, sql: "SELECT id FROM tracks WHERE ytm_id = ?",
+                                arguments: [t.videoId]) != nil { return nil }
+            try db.execute(
+                sql: """
+                    INSERT INTO tracks (status, origin, ytm_id, title, artist, mix,
+                                        duration_s, art_url)
+                    VALUES ('new', 'youtube', ?, ?, ?, '', ?, ?)
+                    """,
+                arguments: [t.videoId, t.rawTitle, t.uploader, t.durationS, t.artURL])
+            let id = db.lastInsertedRowID
+            try db.execute(
+                sql: "INSERT INTO track_events (track_id, event) VALUES (?, 'Seen in YouTube queue')",
                 arguments: [id])
             return id
         }
@@ -486,6 +508,7 @@ public final class Store: Sendable {
         }
         var s = AppSettings()
         if let v = stored["sc_queue_playlist"] { s.scQueuePlaylist = v }
+        if let v = stored["yt_queue_playlist"] { s.ytQueuePlaylist = v }
         if let v = stored["bp_keepers_playlist"] { s.bpKeepersPlaylist = v }
         if let v = stored["target_format"] { s.targetFormat = v }
         if let v = stored["poll_minutes"], let n = Int(v) { s.pollMinutes = n }
@@ -497,7 +520,8 @@ public final class Store: Sendable {
     }
 
     public func saveSettings(_ values: [String: String]) throws {
-        let allowed: Set<String> = ["sc_queue_playlist", "bp_keepers_playlist", "target_format",
+        let allowed: Set<String> = ["sc_queue_playlist", "yt_queue_playlist",
+                                    "bp_keepers_playlist", "target_format",
                                     "poll_minutes", "anthropic_model", "anthropic_api_key",
                                     "collection_dir", "downloads_dir"]
         try dbQueue.write { db in

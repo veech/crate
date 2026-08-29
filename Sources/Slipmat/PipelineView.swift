@@ -25,6 +25,10 @@ let activeStageLabel: [String: String] = [
     "resolving": "Resolving", "fetching": "Downloading", "normalizing": "Tagging",
 ]
 
+let originLabel: [String: String] = [
+    "beatport": "BP", "youtube": "YT", "soundcloud": "SC",
+]
+
 let sourceLabel: [String: String] = [
     "sc_free_dl": "Free DL", "sc_rip": "SC rip", "ytm": "YTM",
     "gate": "Gate", "purchase": "Purchase", "existing": "Duplicate",
@@ -158,7 +162,7 @@ struct TrackRow: View {
             Text(duration)
                 .font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
                 .frame(width: Col.time, alignment: .trailing)
-            Text(track.origin == "beatport" ? "BP" : "SC")
+            Text(originLabel[track.origin] ?? "SC")
                 .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
                 .frame(width: Col.origin, alignment: .leading)
             Text(track.chosenSource.flatMap { sourceLabel[$0] } ?? track.chosenSource ?? "")

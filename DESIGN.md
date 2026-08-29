@@ -9,8 +9,9 @@ DESIGN.md holds the full acquisition rationale, which carries over).
 Two halves:
 
 1. **Pipeline** — the ported djcopilot acquisition flow: SoundCloud Queue
-   playlist and Beatport keepers playlist in; resolve → fetch → normalize →
-   file. Same state machine, same event log, same policies (rip first, buy
+   playlist, a YouTube queue playlist (by URL; items are pre-resolved since
+   the video is the source), and Beatport keepers playlist in; resolve →
+   fetch → normalize → file. Same state machine, same event log, same policies (rip first, buy
    keepers, 256k floor, credential-gated fetches, no external writes).
 2. **Library** — repositories of local folders (genre folders), with
    **Inbox** as the pinned landing repo the pipeline files into. Tracks
