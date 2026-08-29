@@ -23,6 +23,7 @@ struct LibRow: Identifiable {
     var artist: String { file.artist }
     var genre: String { file.genre }
     var durationS: Double { file.durationS }
+    var mtime: Double { file.mtime }
     var ext: String { URL(fileURLWithPath: file.path).pathExtension.uppercased() }
 
     var isUpgradeable: Bool {
@@ -181,6 +182,12 @@ struct LibraryView: View {
                     .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
             }
             .width(40)
+            TableColumn("Modified", value: \.mtime) { row in
+                Text(Date(timeIntervalSince1970: row.mtime),
+                     format: .dateTime.day().month(.abbreviated).year())
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            .width(78)
             TableColumn("Source", value: \.source) { row in
                 HStack(spacing: 4) {
                     Text(row.source)
