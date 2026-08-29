@@ -101,6 +101,7 @@ struct LibraryView: View {
             note = nil
             await rescan()
         }
+        .onChange(of: sortOrder) { model.player.syncQueue(rows.map(\.file)) }
         .onAppear {
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 MainActor.assumeIsolated { handleSpace(event) }
@@ -332,12 +333,14 @@ struct LibraryView: View {
         if selection.remove(oldPath) != nil {
             selection.insert(updated.path)
         }
+        model.player.syncQueue(rows.map(\.file))
     }
 
     func rescan() async {
         scanning = true
         files = await model.scanner.scan(URL(fileURLWithPath: folder, isDirectory: true))
         scanning = false
+        model.player.syncQueue(rows.map(\.file))
     }
 
     func timestamp(_ t: Double) -> String {

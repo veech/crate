@@ -1,4 +1,6 @@
 import AVFoundation
+import AppKit
+import MediaPlayer
 import SwiftUI
 import DJHeroCore
 
@@ -12,6 +14,87 @@ final class PlayerModel {
     private(set) var queue: [LibraryFile] = []
     private var player: AVAudioPlayer?
     private var ticker: Task<Void, Never>?
+
+    init() {
+        setupRemoteCommands()
+    }
+
+    /// The visible list re-syncs the queue on sort or content changes, so
+    /// next/previous always follow what the user is looking at.
+    func syncQueue(_ files: [LibraryFile]) {
+        guard let current, files.contains(where: { $0.path == current.path }) else { return }
+        queue = files
+    }
+
+    /// Hardware media keys arrive through the system's Now Playing service.
+    private func setupRemoteCommands() {
+        let center = MPRemoteCommandCenter.shared()
+        func bind(_ command: MPRemoteCommand, _ action: @escaping @MainActor () -> Bool) {
+            command.addTarget { _ in
+                MainActor.assumeIsolated { action() ? .success : .noSuchContent }
+            }
+        }
+        bind(center.playCommand) { self.resumeIfLoaded() }
+        bind(center.pauseCommand) { self.pauseIfPlaying() }
+        bind(center.togglePlayPauseCommand) {
+            guard self.current != nil else { return false }
+            self.toggle()
+            return true
+        }
+        bind(center.nextTrackCommand) {
+            guard self.hasNext else { return false }
+            self.next()
+            return true
+        }
+        bind(center.previousTrackCommand) {
+            guard self.current != nil else { return false }
+            self.previous()
+            return true
+        }
+        center.changePlaybackPositionCommand.addTarget { event in
+            MainActor.assumeIsolated {
+                guard let event = event as? MPChangePlaybackPositionCommandEvent,
+                      self.current != nil else { return .noSuchContent }
+                self.seek(event.positionTime)
+                return .success
+            }
+        }
+    }
+
+    private func resumeIfLoaded() -> Bool {
+        guard current != nil, !isPlaying else { return current != nil }
+        toggle()
+        return true
+    }
+
+    private func pauseIfPlaying() -> Bool {
+        guard isPlaying else { return current != nil }
+        toggle()
+        return true
+    }
+
+    private func updateNowPlaying() {
+        let center = MPNowPlayingInfoCenter.default()
+        guard let current else {
+            center.nowPlayingInfo = nil
+            center.playbackState = .stopped
+            return
+        }
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: current.title,
+            MPMediaItemPropertyArtist: current.artist,
+            MPMediaItemPropertyPlaybackDuration: duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: position,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+        ]
+        if let artPath = current.artPath, let image = NSImage(contentsOfFile: artPath) {
+            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in
+                image
+            }
+        }
+        center.nowPlayingInfo = info
+        center.playbackState = isPlaying ? .playing : .paused
+    }
 
     /// The queue is the folder's rows as sorted when playback started.
     func play(_ file: LibraryFile, in newQueue: [LibraryFile]? = nil) {
@@ -28,6 +111,7 @@ final class PlayerModel {
         position = 0
         loaded.play()
         isPlaying = true
+        updateNowPlaying()
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(200))
@@ -45,6 +129,7 @@ final class PlayerModel {
             } else {
                 isPlaying = false
                 position = duration
+                updateNowPlaying()
             }
         }
     }
@@ -89,11 +174,13 @@ final class PlayerModel {
             player.play()
             isPlaying = true
         }
+        updateNowPlaying()
     }
 
     func seek(_ t: Double) {
         player?.currentTime = min(max(0, t), max(0, duration - 0.05))
         position = t
+        updateNowPlaying()
     }
 
     func stop() {
@@ -104,6 +191,7 @@ final class PlayerModel {
         isPlaying = false
         position = 0
         duration = 0
+        updateNowPlaying()
     }
 }
 
