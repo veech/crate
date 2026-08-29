@@ -119,6 +119,14 @@ public final class SoundCloudClient: @unchecked Sendable {
         throw DJError("no SoundCloud playlist named \(name)")
     }
 
+    public func searchTracks(_ query: String, limit: Int = 20) async throws -> [SCTrack] {
+        let page = JSON.dict(try await get("/search/tracks",
+                                           query: ["q": query, "limit": String(limit)]))
+        return JSON.array(page["collection"]).map(JSON.dict)
+            .filter { JSON.int($0["id"]) != nil }
+            .map(Self.normalize)
+    }
+
     public func playlistTracks(_ playlistId: String) async throws -> [SCTrack] {
         let pl = JSON.dict(try await get("/playlists/\(playlistId)", query: ["representation": "full"]))
         let items = JSON.array(pl["tracks"]).map(JSON.dict)

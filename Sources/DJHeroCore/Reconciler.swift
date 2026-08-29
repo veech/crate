@@ -237,9 +237,28 @@ public actor Reconciler {
                 let art = await fetchArt(track.artURL)
                 try await FFmpeg.stripAndTag(converted, title: title, artist: track.artist,
                                              art: art)
-                let dest = try Self.fileIntoCollection(
-                    converted, collectionDir: URL(fileURLWithPath: settings.collectionDir),
-                    title: title, artist: track.artist)
+                let dest: URL
+                // A back-matched track replaces its old rip where it lives,
+                // keeping the genre the user already assigned.
+                if let up = track.upgradePath, !up.isEmpty {
+                    let old = URL(fileURLWithPath: up)
+                    if let genre = await FFmpeg.probeTags(old)?.genre, !genre.isEmpty {
+                        try await FFmpeg.writeTags(converted, ["genre": genre])
+                    }
+                    dest = try Self.fileIntoCollection(
+                        converted, collectionDir: old.deletingLastPathComponent(),
+                        title: title, artist: track.artist)
+                    if old.path != dest.path, FileManager.default.fileExists(atPath: old.path) {
+                        try? FileManager.default.removeItem(at: old)
+                        try? store.record(track.id, "Removed superseded file", old.path)
+                    }
+                    try? store.deleteLibraryFiles([up, dest.path])
+                    try? store.update(track.id, ["upgrade_path": nil])
+                } else {
+                    dest = try Self.fileIntoCollection(
+                        converted, collectionDir: URL(fileURLWithPath: settings.collectionDir),
+                        title: title, artist: track.artist)
+                }
                 try? store.update(track.id, ["file_path": dest.path])
                 try? store.markFiledNow(track.id)
                 try? store.setStatus(track.id, "filed", "Filed", dest.path)

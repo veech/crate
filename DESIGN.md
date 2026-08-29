@@ -18,7 +18,10 @@ Two halves:
    genre), inline tag editing on the selected row (title, artist, genre —
    title/artist edits also rename the file and feed the pipeline record so
    dedupe matches), multi-select, move between repos, context-menu actions.
-   Imported files without source info are first-class rows.
+   Imported files without source info are first-class rows, and can be
+   back-matched to SoundCloud (search + duration gate + LLM adjudication) to
+   find a free-DL upload; a hit enters the pipeline with `upgrade_path` set,
+   and normalize replaces the old rip in place, keeping folder and genre.
 
 Post-MVP (explicitly out of the MVP): the Analyze stage — perceptual quality
 rating, key (Camelot), BPM. The pipeline's spectral transcode warning ports

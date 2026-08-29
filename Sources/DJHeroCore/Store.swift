@@ -19,6 +19,7 @@ public struct Track: Identifiable, Sendable {
     public var chosenSource: String?
     public var filePath: String?
     public var filedAt: String?
+    public var upgradePath: String?
 
     init(row: Row) {
         id = row["id"]
@@ -38,6 +39,7 @@ public struct Track: Identifiable, Sendable {
         chosenSource = row["chosen_source"]
         filePath = row["file_path"]
         filedAt = row["filed_at"]
+        upgradePath = row["upgrade_path"]
     }
 }
 
@@ -84,7 +86,8 @@ public final class Store: Sendable {
                   sc_downloadable INTEGER,
                   chosen_source TEXT,
                   file_path TEXT,
-                  filed_at TEXT
+                  filed_at TEXT,
+                  upgrade_path TEXT
                 );
                 CREATE TABLE IF NOT EXISTS track_events (
                   track_id INTEGER NOT NULL REFERENCES tracks(id),
@@ -111,6 +114,8 @@ public final class Store: Sendable {
                   art_path TEXT
                 );
                 """)
+            // Databases created before the column existed pick it up here.
+            _ = try? db.execute(sql: "ALTER TABLE tracks ADD COLUMN upgrade_path TEXT")
         }
     }
 
@@ -257,6 +262,35 @@ public final class Store: Sendable {
             try db.execute(
                 sql: "INSERT INTO track_events (track_id, event) VALUES (?, 'Seen in SoundCloud queue')",
                 arguments: [id])
+            return id
+        }
+    }
+
+    /// A library file matched back to SoundCloud enters the pipeline pre-resolved
+    /// (title and artist are already the curated 1:1 names), aimed at upgrading
+    /// the existing file in place. Returns nil when the SC track is already known.
+    public func insertBackMatch(_ t: SCTrack, title: String, artist: String,
+                                upgradePath: String) throws -> Int64? {
+        try dbQueue.write { db in
+            if try Row.fetchOne(db, sql: "SELECT id FROM tracks WHERE sc_id = ?",
+                                arguments: [t.scId]) != nil { return nil }
+            let gate = Gates.isGate(purchaseURL: t.purchaseURL, purchaseTitle: t.purchaseTitle)
+            let status = t.downloadable ? "resolved" : "held_gate"
+            try db.execute(
+                sql: """
+                    INSERT INTO tracks (status, origin, sc_id, sc_url, title, artist, mix,
+                                        duration_s, art_url, gate_url, sc_downloadable,
+                                        chosen_source, upgrade_path)
+                    VALUES (?, 'soundcloud', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?)
+                    """,
+                arguments: [status, t.scId, t.scURL, title, artist, t.durationS, t.artURL,
+                            gate ? t.purchaseURL : "", t.downloadable ? 1 : 0,
+                            t.downloadable ? "sc_free_dl" : nil, upgradePath])
+            let id = db.lastInsertedRowID
+            try db.execute(
+                sql: "INSERT INTO track_events (track_id, event, detail) VALUES (?, ?, ?)",
+                arguments: [id, "Matched from library",
+                            URL(fileURLWithPath: upgradePath).lastPathComponent])
             return id
         }
     }

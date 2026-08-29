@@ -37,6 +37,8 @@ final class AppModel {
     var collectionDir = AppSettings().collectionDir
     var loaded = false
     var cycling = false
+    var matching = false
+    var matchProgress: (done: Int, total: Int, hits: Int) = (0, 0, 0)
     var lastError: String?
 
     init() {
@@ -84,6 +86,41 @@ final class AppModel {
     func removeRepo(_ path: String) {
         try? store.removeRepo(path)
         refresh()
+    }
+
+    /// Search SoundCloud for uploads of these files that offer a download; hits
+    /// enter the pipeline aimed at upgrading the old rip in place.
+    func findFreeDL(_ files: [LibraryFile]) {
+        guard !matching, !files.isEmpty else { return }
+        matching = true
+        matchProgress = (0, files.count, 0)
+        Task {
+            defer { matching = false }
+            let client: SoundCloudClient
+            do {
+                client = try SoundCloudClient(cookiesFile: cfg.cookies("soundcloud"),
+                                              cacheDir: cfg.cacheDir)
+            } catch {
+                lastError = "\(error)"
+                return
+            }
+            let settings = (try? store.loadSettings()) ?? AppSettings()
+            for (i, file) in files.enumerated() {
+                if let sc = await BackMatch.find(
+                       title: file.title, artist: file.artist,
+                       durationS: Int(file.durationS.rounded()),
+                       client: client, settings: settings),
+                   let id = try? store.insertBackMatch(
+                       sc, title: file.title, artist: file.artist, upgradePath: file.path),
+                   id != nil {
+                    matchProgress.hits += 1
+                }
+                matchProgress.done = i + 1
+                try? await Task.sleep(for: .seconds(1))
+            }
+            refresh()
+            if matchProgress.hits > 0 { runCycle() }
+        }
     }
 
     func retag(_ file: LibraryFile, title: String, artist: String,

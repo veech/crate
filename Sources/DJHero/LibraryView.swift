@@ -82,6 +82,12 @@ struct LibraryView: View {
             Text(name).font(.headline)
             Text("\(files.count)").font(.caption.monospaced()).foregroundStyle(.secondary)
             if scanning { ProgressView().controlSize(.small) }
+            if model.matching {
+                ProgressView().controlSize(.small)
+                Text("Matching \(model.matchProgress.done)/\(model.matchProgress.total)"
+                    + " · \(model.matchProgress.hits) hits")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Spacer()
             if let note {
                 Text(note).font(.caption).foregroundStyle(.orange).lineLimit(1)
@@ -155,9 +161,28 @@ struct LibraryView: View {
                 }
             }
         }
+        let candidates = files.filter { paths.contains($0.path) && !pipelinePaths.contains($0.path) }
+        if !candidates.isEmpty {
+            Button(candidates.count > 1
+                   ? "Find Free DLs on SoundCloud (\(candidates.count))"
+                   : "Find Free DL on SoundCloud") {
+                model.findFreeDL(candidates)
+            }
+            .disabled(model.matching)
+        }
         Button("Show in Finder") {
             NSWorkspace.shared.activateFileViewerSelecting(paths.map { URL(fileURLWithPath: $0) })
         }
+    }
+
+    /// Files the pipeline already knows: filed by it, or queued for an upgrade.
+    var pipelinePaths: Set<String> {
+        var out = Set<String>()
+        for track in model.tracks {
+            if let path = track.filePath { out.insert(path) }
+            if let up = track.upgradePath, !up.isEmpty { out.insert(up) }
+        }
+        return out
     }
 
     var destinations: [(path: String, name: String)] {

@@ -102,13 +102,14 @@ public enum Anthropic {
 
     /// nil means no verdict (no key or API failure); the track goes to human review.
     public static func adjudicate(model: String, wanted: String,
-                                  candidates: [YTMCandidate], key: String?) async -> Verdict? {
+                                  candidates: [YTMCandidate], key: String?,
+                                  service: String = "YouTube Music") async -> Verdict? {
         guard resolveKey(key) != nil else { return nil }
         let list = candidates
             .map { "- videoId \($0.videoId): \($0.title) — \($0.artists) (\($0.durationS)s)" }
             .joined(separator: "\n")
         let prompt = """
-            A DJ library tool must decide which YouTube Music result IS this exact track \
+            A DJ library tool must decide which \(service) result IS this exact track \
             (same recording, same mix/edit), or reject all of them.
 
             Wanted track: \(wanted)
