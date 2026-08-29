@@ -14,12 +14,18 @@ public struct SCTrack: Sendable {
 
 public enum Gates {
     static let domains = ["hypeddit.com", "toneden.io", "theartistunion.com", "gate.fm"]
+    static let storeWords = ["buy", "stream", "purchase", "store", "shop"]
 
+    /// Gate hosts also serve store fanlinks, so the uploader's own label
+    /// decides: "free" marks a gate, store words mark a fanlink, and only an
+    /// unlabeled link falls back to the gate-host list.
     public static func isGate(purchaseURL: String, purchaseTitle: String) -> Bool {
         guard !purchaseURL.isEmpty else { return false }
+        let title = purchaseTitle.lowercased()
+        if title.contains("free") { return true }
+        if storeWords.contains(where: { title.contains($0) }) { return false }
         let host = URL(string: purchaseURL)?.host?.lowercased() ?? ""
-        if domains.contains(where: { host.contains($0) }) { return true }
-        return purchaseTitle.lowercased().contains("free")
+        return domains.contains(where: { host.contains($0) })
     }
 }
 
