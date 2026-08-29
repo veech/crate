@@ -21,6 +21,7 @@ let package = Package(
         .executableTarget(
             name: "Slipmat",
             dependencies: ["SlipmatCore"],
+            resources: [.copy("Resources/AppIcon.icns")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

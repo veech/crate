@@ -8,6 +8,11 @@ struct SlipmatApp: App {
 
     init() {
         NSApplication.shared.setActivationPolicy(.regular)
+        // A bare SwiftPM executable has no bundle Info.plist; the Dock icon
+        // is set at runtime until packaging bakes the icns in.
+        if let path = Bundle.module.path(forResource: "AppIcon", ofType: "icns") {
+            NSApplication.shared.applicationIconImage = NSImage(contentsOfFile: path)
+        }
     }
 
     var body: some Scene {
