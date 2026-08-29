@@ -170,7 +170,7 @@ struct LibraryView: View {
             TableColumn("Genre", value: \.genre) { row in
                 tagCell(row, .genre)
             }
-            .width(min: 90, ideal: 140)
+            .width(min: 60, ideal: 90)
             TableColumn("Time", value: \.durationS) { row in
                 Text(timestamp(row.durationS))
                     .font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
@@ -181,6 +181,20 @@ struct LibraryView: View {
                     .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
             }
             .width(40)
+            TableColumn("Source", value: \.source) { row in
+                HStack(spacing: 4) {
+                    Text(row.source)
+                        .font(.system(size: 10).monospaced())
+                        .foregroundStyle(.secondary)
+                    if let raw = row.sourceURL, let url = URL(string: raw) {
+                        IconButton(systemName: "arrow.up.right", size: 8, weight: .bold,
+                                   hit: 20) { NSWorkspace.shared.open(url) }
+                            .foregroundStyle(.tertiary)
+                            .help(raw)
+                    }
+                }
+            }
+            .width(56)
             TableColumn("Upgrade", value: \.upgradeRank) { row in
                 switch row.upgrade {
                 case .available:
@@ -197,20 +211,6 @@ struct LibraryView: View {
                         .help("Already lossless")
                 case .none:
                     EmptyView()
-                }
-            }
-            .width(56)
-            TableColumn("Source", value: \.source) { row in
-                HStack(spacing: 4) {
-                    Text(row.source)
-                        .font(.system(size: 10).monospaced())
-                        .foregroundStyle(.secondary)
-                    if let raw = row.sourceURL, let url = URL(string: raw) {
-                        IconButton(systemName: "arrow.up.right", size: 8, weight: .bold,
-                                   hit: 20) { NSWorkspace.shared.open(url) }
-                            .foregroundStyle(.tertiary)
-                            .help(raw)
-                    }
                 }
             }
             .width(56)
