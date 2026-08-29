@@ -102,6 +102,13 @@ struct LibraryView: View {
             await rescan()
         }
         .onChange(of: sortOrder) { model.player.syncQueue(rows.map(\.file)) }
+        .onChange(of: model.player.current?.path) {
+            // Selection follows playback, but never tramples a multi-select.
+            guard selection.count <= 1,
+                  let path = model.player.current?.path,
+                  files.contains(where: { $0.path == path }) else { return }
+            selection = [path]
+        }
         .onAppear {
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 MainActor.assumeIsolated { handleSpace(event) }
