@@ -10,7 +10,8 @@ in DESIGN.md says otherwise.
 - `swift build` — build everything (SwiftPM package; Xcode opens Package.swift).
 - `swift run slipmatctl auth|cycle|ytm-search <q>` — headless CLI for testing.
 - `swift run Slipmat
-- Package the app: ./scripts/package.sh (produces dist/Slipmat.app)` — the app.
+- Package the app: ./scripts/package.sh (produces dist/Slipmat.app)
+- Quality analysis needs: uv tool install audiobox-aesthetics --with requests --with torchcodec` — the app.
 
 ## Conventions
 

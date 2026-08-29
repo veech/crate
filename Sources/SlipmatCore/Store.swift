@@ -122,6 +122,14 @@ public final class Store: Sendable {
                   downloadable INTEGER,
                   art_url TEXT
                 );
+                CREATE TABLE IF NOT EXISTS file_analysis (
+                  path TEXT PRIMARY KEY,
+                  ce REAL NOT NULL,
+                  cu REAL NOT NULL,
+                  pc REAL NOT NULL,
+                  pq REAL NOT NULL,
+                  analyzed_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
                 """)
             // Databases created before the column existed pick it up here.
             _ = try? db.execute(sql: "ALTER TABLE tracks ADD COLUMN upgrade_path TEXT")
@@ -370,6 +378,38 @@ public final class Store: Sendable {
         }
     }
 
+    // MARK: quality analysis
+
+    public func allFileAnalyses() throws -> [String: FileAnalysis] {
+        try dbQueue.read { db in
+            var out: [String: FileAnalysis] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT * FROM file_analysis") {
+                out[row["path"]] = FileAnalysis(ce: row["ce"], cu: row["cu"],
+                                                pc: row["pc"], pq: row["pq"])
+            }
+            return out
+        }
+    }
+
+    public func saveFileAnalysis(_ path: String, _ a: FileAnalysis) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO file_analysis (path, ce, cu, pc, pq)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(path) DO UPDATE SET ce = excluded.ce, cu = excluded.cu,
+                      pc = excluded.pc, pq = excluded.pq, analyzed_at = datetime('now')
+                    """,
+                arguments: [path, a.ce, a.cu, a.pc, a.pq])
+        }
+    }
+
+    public func deleteFileAnalysis(_ path: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM file_analysis WHERE path = ?", arguments: [path])
+        }
+    }
+
     // MARK: dedupe
 
     public static func normalizeName(_ artist: String, _ title: String) -> String {
@@ -492,6 +532,8 @@ public final class Store: Sendable {
             try db.execute(sql: "UPDATE tracks SET upgrade_path = ? WHERE upgrade_path = ?",
                            arguments: [new, old])
             try db.execute(sql: "UPDATE file_sources SET path = ? WHERE path = ?",
+                           arguments: [new, old])
+            try db.execute(sql: "UPDATE file_analysis SET path = ? WHERE path = ?",
                            arguments: [new, old])
         }
     }

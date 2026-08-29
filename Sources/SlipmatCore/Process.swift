@@ -15,7 +15,8 @@ public enum Binaries {
         if let resources = Bundle.main.resourceURL {
             candidates.append(resources.appendingPathComponent(name))
         }
-        for dir in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        for dir in ["\(home)/.local/bin", "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
             candidates.append(URL(fileURLWithPath: "\(dir)/\(name)"))
         }
         for url in candidates where FileManager.default.isExecutableFile(atPath: url.path) {
@@ -27,10 +28,11 @@ public enum Binaries {
 
 public enum ProcessRunner {
     /// Cancellation terminates the child and surfaces as CancellationError.
-    public static func run(_ tool: URL, _ args: [String]) async throws -> ProcessResult {
+    public static func run(_ tool: URL, _ args: [String],
+                           env extra: [String: String] = [:]) async throws -> ProcessResult {
         let process = Process()
         let result = try await withTaskCancellationHandler {
-            try await launch(process, tool, args)
+            try await launch(process, tool, args, extra)
         } onCancel: {
             if process.isRunning { process.terminate() }
         }
@@ -38,13 +40,14 @@ public enum ProcessRunner {
         return result
     }
 
-    static func launch(_ process: Process, _ tool: URL,
-                       _ args: [String]) async throws -> ProcessResult {
+    static func launch(_ process: Process, _ tool: URL, _ args: [String],
+                       _ extra: [String: String]) async throws -> ProcessResult {
         try await withCheckedThrowingContinuation { continuation in
             process.executableURL = tool
             process.arguments = args
             var env = ProcessInfo.processInfo.environment
             env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + (env["PATH"] ?? "/usr/bin:/bin")
+            env.merge(extra) { _, new in new }
             process.environment = env
 
             let out = Pipe(), err = Pipe()

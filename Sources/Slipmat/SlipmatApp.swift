@@ -49,6 +49,9 @@ final class AppModel {
     var matchProgress: (done: Int, total: Int, hits: Int) = (0, 0, 0)
     var matchSummary: String?
     var fileSources: [String: FileSource] = [:]
+    var analyzing = false
+    var analyzeProgress: (done: Int, total: Int) = (0, 0)
+    var analyses: [String: FileAnalysis] = [:]
     var lastError: String?
 
     init() {
@@ -75,6 +78,7 @@ final class AppModel {
         tracks = (try? store.allTracks()) ?? []
         repos = (try? store.repos()) ?? []
         fileSources = (try? store.allFileSources()) ?? [:]
+        analyses = (try? store.allFileAnalyses()) ?? [:]
         collectionDir = ((try? store.loadSettings())?.collectionDir) ?? collectionDir
         inboxCount = ((try? FileManager.default.contentsOfDirectory(atPath: collectionDir)) ?? [])
             .filter {
@@ -242,6 +246,33 @@ final class AppModel {
             try? FileManager.default.removeItem(atPath: path)
         }
         refresh()
+    }
+
+    /// Perceptual quality scoring in chunks, so one model load covers several
+    /// tracks and progress still moves.
+    func analyze(_ files: [LibraryFile]) {
+        guard !analyzing, !files.isEmpty else { return }
+        analyzing = true
+        analyzeProgress = (0, files.count)
+        Task {
+            defer { analyzing = false }
+            for start in stride(from: 0, to: files.count, by: 6) {
+                let chunk = Array(files[start..<min(start + 6, files.count)])
+                do {
+                    let scores = try await Analyzer.run(chunk.map(\.path),
+                                                        cacheDir: cfg.cacheDir)
+                    for (file, score) in zip(chunk, scores) {
+                        try? store.saveFileAnalysis(file.path, score)
+                    }
+                } catch {
+                    lastError = "\(error)"
+                    break
+                }
+                analyzeProgress.done += chunk.count
+                refresh()
+            }
+            refresh()
+        }
     }
 
     func clearSource(_ files: [LibraryFile]) {

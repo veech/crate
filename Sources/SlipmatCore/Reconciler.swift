@@ -325,6 +325,8 @@ public actor Reconciler {
                 }
                 try? store.deleteLibraryFiles([up, dest.path])
                 try? store.deleteFileSource(up)
+                // The audio itself changed; any quality score is stale.
+                try? store.deleteFileAnalysis(up)
                 try? store.update(track.id, ["upgrade_path": nil])
             } else {
                 dest = try Self.fileIntoCollection(

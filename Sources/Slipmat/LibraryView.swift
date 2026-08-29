@@ -17,6 +17,9 @@ struct LibRow: Identifiable {
     let source: String
     let sourceURL: String?
     let upgrade: UpgradeState
+    let analysis: FileAnalysis?
+
+    var quality: Double { analysis?.pq ?? -1 }
 
     var id: String { file.path }
     var title: String { file.title }
@@ -85,7 +88,8 @@ struct LibraryView: View {
             return LibRow(file: file,
                           source: sources[file.path] ?? (src != nil ? "SC" : ""),
                           sourceURL: urls[file.path] ?? src?.pageURL,
-                          upgrade: upgrade)
+                          upgrade: upgrade,
+                          analysis: model.analyses[file.path])
         }
         .sorted(using: sortOrder)
     }
@@ -152,6 +156,11 @@ struct LibraryView: View {
                     .font(.caption).foregroundStyle(.secondary)
             } else if let summary = model.matchSummary {
                 Text(summary).font(.caption).foregroundStyle(.secondary)
+            }
+            if model.analyzing {
+                ProgressView().controlSize(.small)
+                Text("Analyzing \(model.analyzeProgress.done)/\(model.analyzeProgress.total)")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             if let note {
@@ -245,6 +254,18 @@ struct LibraryView: View {
                 }
             }
             .width(56)
+            TableColumn("Quality", value: \.quality) { row in
+                if let a = row.analysis {
+                    Text(String(format: "%.1f", a.pq))
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(a.pq < 5 ? Color.red
+                                         : a.pq < 7 ? Color.orange : Color.secondary)
+                        .help(String(format: "Production %.1f · Enjoyment %.1f"
+                                     + " · Usefulness %.1f · Complexity %.1f",
+                                     a.pq, a.ce, a.cu, a.pc))
+                }
+            }
+            .width(48)
         }
         .contextMenu(forSelectionType: String.self) { paths in
             contextMenu(paths)
@@ -278,6 +299,14 @@ struct LibraryView: View {
             Button(upgradeables.count > 1 ? "Upgrade (\(upgradeables.count))" : "Upgrade") {
                 model.upgrade(upgradeables.map(\.file))
             }
+        }
+        let unanalyzed = files.filter { paths.contains($0.path) && model.analyses[$0.path] == nil }
+        if !unanalyzed.isEmpty {
+            Button(unanalyzed.count > 1 ? "Analyze Quality (\(unanalyzed.count))"
+                                        : "Analyze Quality") {
+                model.analyze(unanalyzed)
+            }
+            .disabled(model.analyzing)
         }
         if !destinations.isEmpty {
             Menu("Move to") {

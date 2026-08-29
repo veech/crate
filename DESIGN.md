@@ -28,9 +28,14 @@ Two halves:
    keeping folder and genre. The Source column stays pure identity:
    service plus page link.
 
-Post-MVP (explicitly out of the MVP): the Analyze stage — perceptual quality
-rating, key (Camelot), BPM. The pipeline's spectral transcode warning ports
-as-is since it is existing normalize behavior.
+**Analyze**: quality is live — an on-demand Library action ("Analyze
+Quality") scoring tracks with Meta's audiobox-aesthetics model via a
+uv-installed CLI (`uv tool install audiobox-aesthetics --with requests
+--with torchcodec`; torchcodec needs Homebrew ffmpeg ≤7 dylibs). PQ shows
+in the sortable Quality column (all four axes in the tooltip); scores live
+in `file_analysis`, DB-only, never in tags, invalidated when an upgrade
+replaces the audio. Still post-MVP: key (Camelot) and BPM. The pipeline's
+spectral transcode warning is separate, existing normalize behavior.
 
 ## Architecture
 
@@ -102,5 +107,5 @@ as-is since it is existing normalize behavior.
 5. Packaging: .app bundle via scripts/package.sh (ad-hoc signed; ffmpeg
    and yt-dlp still resolved from Homebrew). Remaining: bundled binaries,
    yt-dlp self-update, real signing + Keychain for the API key.
-6. Post-MVP: Analyze (quality model, key, BPM — see reference conversation;
-   quality via a frozen PyInstaller CLI if adopted).
+6. Analyze: quality shipped (audiobox-aesthetics via uv tool). Post-MVP:
+   key (Camelot), BPM.
