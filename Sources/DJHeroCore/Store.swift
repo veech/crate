@@ -340,6 +340,15 @@ public final class Store: Sendable {
         }
     }
 
+    /// An edited name feeds back into the pipeline record so dedupe matches it.
+    public func setFiledMetadata(path: String, title: String, artist: String) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE tracks SET title = ?, artist = ?, mix = '' WHERE file_path = ?",
+                arguments: [title, artist, path])
+        }
+    }
+
     /// A moved file keeps its probe cache, and its pipeline record follows it.
     public func relocateFile(from old: String, to new: String) throws {
         try dbQueue.write { db in

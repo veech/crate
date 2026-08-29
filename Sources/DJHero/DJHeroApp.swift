@@ -86,9 +86,10 @@ final class AppModel {
         refresh()
     }
 
-    func setGenre(_ file: LibraryFile, genre: String) async -> LibraryFile? {
+    func retag(_ file: LibraryFile, title: String, artist: String,
+               genre: String) async -> LibraryFile? {
         do {
-            return try await scanner.setGenre(file, genre: genre)
+            return try await scanner.retag(file, title: title, artist: artist, genre: genre)
         } catch {
             lastError = "\(error)"
             return nil

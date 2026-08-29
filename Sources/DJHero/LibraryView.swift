@@ -101,20 +101,14 @@ struct LibraryView: View {
             TableColumn("Title", value: \.title) { row in
                 HStack(spacing: 8) {
                     ArtThumb(path: row.file.artPath, size: 24)
-                    Text(row.title)
-                        .font(.system(size: 12, weight: .medium)).lineLimit(1)
+                    tagCell(row, .title)
                 }
             }
             TableColumn("Artist", value: \.artist) { row in
-                Text(row.artist)
-                    .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                tagCell(row, .artist)
             }
             TableColumn("Genre", value: \.genre) { row in
-                GenreCell(model: model, file: row.file) { updated in
-                    if let i = files.firstIndex(where: { $0.path == updated.path }) {
-                        files[i] = updated
-                    }
-                }
+                tagCell(row, .genre)
             }
             .width(min: 90, ideal: 140)
             TableColumn("Time", value: \.durationS) { row in
@@ -177,6 +171,31 @@ struct LibraryView: View {
         }
     }
 
+    /// Finder-style: cells are plain text until their row is the lone selection.
+    @ViewBuilder
+    func tagCell(_ row: LibRow, _ field: TagField) -> some View {
+        if selection == [row.id] {
+            TagCell(model: model, file: row.file, field: field) { updated in
+                replace(row.file.path, with: updated)
+            }
+        } else {
+            Text(field.value(in: row.file))
+                .font(field.font)
+                .foregroundStyle(field == .artist ? Color.secondary : Color.primary)
+                .lineLimit(1)
+        }
+    }
+
+    /// A retag can rename, so the row is matched by its pre-edit path.
+    func replace(_ oldPath: String, with updated: LibraryFile) {
+        if let i = files.firstIndex(where: { $0.path == oldPath }) {
+            files[i] = updated
+        }
+        if selection.remove(oldPath) != nil {
+            selection.insert(updated.path)
+        }
+    }
+
     func rescan() async {
         scanning = true
         files = await model.scanner.scan(URL(fileURLWithPath: folder, isDirectory: true))
@@ -189,40 +208,76 @@ struct LibraryView: View {
     }
 }
 
-/// Genre edits write straight into the file's tag; Return commits.
-struct GenreCell: View {
+enum TagField {
+    case title, artist, genre
+
+    func value(in file: LibraryFile) -> String {
+        switch self {
+        case .title: file.title
+        case .artist: file.artist
+        case .genre: file.genre
+        }
+    }
+
+    var font: Font {
+        self == .title ? .system(size: 12, weight: .medium) : .system(size: 12)
+    }
+}
+
+/// Edits write straight into the file's tags; Return commits. A title or
+/// artist edit also renames the file to the collection convention.
+struct TagCell: View {
     let model: AppModel
     let file: LibraryFile
+    let field: TagField
     let onSaved: (LibraryFile) -> Void
     @State private var text: String
     @State private var saving = false
 
-    init(model: AppModel, file: LibraryFile, onSaved: @escaping (LibraryFile) -> Void) {
+    init(model: AppModel, file: LibraryFile, field: TagField,
+         onSaved: @escaping (LibraryFile) -> Void) {
         self.model = model
         self.file = file
+        self.field = field
         self.onSaved = onSaved
-        _text = State(initialValue: file.genre)
+        _text = State(initialValue: field.value(in: file))
     }
+
+    var current: String { field.value(in: file) }
 
     var body: some View {
         HStack(spacing: 4) {
             TextField("—", text: $text)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12))
+                .font(field.font)
+                .foregroundStyle(field == .artist ? Color.secondary : Color.primary)
                 .onSubmit(save)
             if saving { ProgressView().controlSize(.mini) }
         }
-        .onChange(of: file.genre) { text = file.genre }
+        .onChange(of: current) { text = current }
     }
 
     func save() {
-        guard text != file.genre, !saving else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        // The filename needs both halves; only genre may clear.
+        if trimmed.isEmpty && field != .genre {
+            text = current
+            return
+        }
+        guard trimmed != current, !saving else { return }
         saving = true
         Task {
-            if let updated = await model.setGenre(file, genre: text) {
+            var (title, artist, genre) = (file.title, file.artist, file.genre)
+            switch field {
+            case .title: title = trimmed
+            case .artist: artist = trimmed
+            case .genre: genre = trimmed
+            }
+            if let updated = await model.retag(file, title: title, artist: artist, genre: genre) {
                 onSaved(updated)
+                text = field.value(in: updated)
             } else {
-                text = file.genre
+                text = current
             }
             saving = false
         }

@@ -117,11 +117,37 @@ public struct LibraryScanner: Sendable {
         SHA256.hash(data: Data(s.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
-    public func setGenre(_ file: LibraryFile, genre: String) async throws -> LibraryFile {
-        try await FFmpeg.writeGenre(URL(fileURLWithPath: file.path), genre: genre)
+    /// Rewrites the three curated tags; a title or artist change also renames
+    /// the file to the collection convention and updates the pipeline record.
+    public func retag(_ file: LibraryFile, title: String, artist: String,
+                      genre: String) async throws -> LibraryFile {
+        let url = URL(fileURLWithPath: file.path)
+        try await FFmpeg.writeTags(url, ["title": title, "artist": artist, "genre": genre])
+
         var updated = file
+        updated.title = title
+        updated.artist = artist
         updated.genre = genre
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: file.path) {
+
+        var finalURL = url
+        if title != file.title || artist != file.artist {
+            let name = Reconciler.safeFilename(title: title, artist: artist,
+                                               ext: url.pathExtension)
+            let dest = url.deletingLastPathComponent().appendingPathComponent(name)
+            if dest.path != url.path {
+                // A case-only rename collides with itself on APFS; let it through.
+                if FileManager.default.fileExists(atPath: dest.path),
+                   dest.path.lowercased() != url.path.lowercased() {
+                    throw DJError("a file named \(name) already exists here")
+                }
+                try FileManager.default.moveItem(at: url, to: dest)
+                try store.relocateFile(from: url.path, to: dest.path)
+                finalURL = dest
+                updated.path = dest.path
+            }
+            try store.setFiledMetadata(path: finalURL.path, title: title, artist: artist)
+        }
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: finalURL.path) {
             updated.mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? file.mtime
             updated.size = (attrs[.size] as? NSNumber)?.int64Value ?? file.size
         }

@@ -15,9 +15,10 @@ Two halves:
 2. **Library** — repositories of local folders (genre folders), with
    **Holding** as the pinned landing repo the pipeline files into. Tracks
    keep their source dossier. Integrated audition player (scrub to judge
-   genre), inline genre-tag editing, multi-select, move between repos,
-   context-menu actions. Imported files without source info are first-class
-   rows.
+   genre), inline tag editing on the selected row (title, artist, genre —
+   title/artist edits also rename the file and feed the pipeline record so
+   dedupe matches), multi-select, move between repos, context-menu actions.
+   Imported files without source info are first-class rows.
 
 Post-MVP (explicitly out of the MVP): the Analyze stage — perceptual quality
 rating, key (Camelot), BPM. The pipeline's spectral transcode warning ports
@@ -84,9 +85,9 @@ as-is since it is existing normalize behavior.
 
 1. Core port compiling + djheroctl auth/cycle verified against live services.
 2. SwiftUI shell: pipeline sections, run cycle, settings (cookies paste).
-3. Library: repos + probe cache, Holding, inline genre editing (written to
-   the file tag), move/multi-select, context menu, audition player with
-   scrubbing (AVAudioPlayer). Done.
+3. Library: repos + probe cache, Holding, inline tag editing (title, artist,
+   genre — written to the file; name edits rename), move/multi-select,
+   context menu, audition player with scrubbing (AVAudioPlayer). Done.
 4. Gate flow UI: open gate + select the downloaded file (gates rarely
    expose a copyable final URL — learned in reference testing; the
    paste-a-link flow is dead). Needs-review candidate picker.

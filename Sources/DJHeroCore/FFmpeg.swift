@@ -101,20 +101,22 @@ public enum FFmpeg {
         return result.status == 0 && FileManager.default.fileExists(atPath: out.path)
     }
 
-    /// Rewrite the genre tag in place; every other tag and the art stay.
-    public static func writeGenre(_ path: URL, genre: String) async throws {
+    /// Rewrite the given tags in place; every other tag and the art stay.
+    public static func writeTags(_ path: URL, _ tags: [String: String]) async throws {
         let ext = path.pathExtension.lowercased()
         let temp = path.deletingLastPathComponent()
             .appendingPathComponent(UUID().uuidString + "." + ext)
-        var args = ["-y", "-i", path.path, "-map", "0", "-c", "copy",
-                    "-map_metadata", "0", "-metadata", "genre=\(genre)"]
+        var args = ["-y", "-i", path.path, "-map", "0", "-c", "copy", "-map_metadata", "0"]
+        for (key, value) in tags.sorted(by: { $0.key < $1.key }) {
+            args += ["-metadata", "\(key)=\(value)"]
+        }
         if ext == "aiff" || ext == "aif" { args += ["-write_id3v2", "1"] }
         args.append(temp.path)
         let tool = try Binaries.find("ffmpeg")
         let result = try await ProcessRunner.run(tool, args)
         guard result.status == 0 else {
             try? FileManager.default.removeItem(at: temp)
-            throw DJError("ffmpeg genre write failed: " + YtDlp.tail(result.stderrText))
+            throw DJError("ffmpeg tag write failed: " + YtDlp.tail(result.stderrText))
         }
         _ = try FileManager.default.replaceItemAt(path, withItemAt: temp)
     }
