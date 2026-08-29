@@ -1,4 +1,4 @@
-# djhero — Design
+# slipmat — Design
 
 Native macOS app: a DJ library manager fed by an acquisition pipeline.
 Swift rewrite of `../djcopilot` (kept as the reference implementation; its
@@ -33,8 +33,8 @@ as-is since it is existing normalize behavior.
 
 ## Architecture
 
-- **SwiftPM package**, three targets: `DJHeroCore` (library: DB, clients,
-  pipeline), `DJHero` (SwiftUI app), `djheroctl` (headless CLI for auth
+- **SwiftPM package**, three targets: `SlipmatCore` (library: DB, clients,
+  pipeline), `Slipmat` (SwiftUI app), `slipmatctl` (headless CLI for auth
   checks and cycles — the test surface).
 - **No Python runtime.** External work is shell-outs to single-file
   binaries: `yt-dlp` (rips, probes; `--js-runtimes bun` always passed),
@@ -46,7 +46,7 @@ as-is since it is existing normalize behavior.
   ytmusicapi: WEB_REMIX client, songs filter param
   `EgWKAQIIAWoMEA4QChADEAQQCRAF`), Anthropic Messages API with structured
   outputs (title split, match adjudication).
-- **State**: SQLite via GRDB in `~/Library/Application Support/djhero` —
+- **State**: SQLite via GRDB in `~/Library/Application Support/slipmat` —
   same schema as the reference (tracks, track_events, settings) plus
   `repos` and a `library_files` probe cache. Library reads folders straight
   from disk; the cache keys on path + mtime + size so rescans are cheap.
@@ -74,7 +74,7 @@ as-is since it is existing normalize behavior.
 
 ## Port map (reference file → here)
 
-| Reference (djcopilot) | djhero |
+| Reference (djcopilot) | slipmat |
 |---|---|
 | db.py | Store.swift |
 | settings.py | Store.swift (AppSettings) |
@@ -86,11 +86,11 @@ as-is since it is existing normalize behavior.
 | normalize.py | FFmpeg.swift |
 | reconcile.py | Reconciler.swift |
 | auth.py | AuthStatus.swift |
-| web.py + React app | SwiftUI (DJHero target) |
+| web.py + React app | SwiftUI (Slipmat target) |
 
 ## Roadmap
 
-1. Core port compiling + djheroctl auth/cycle verified against live services.
+1. Core port compiling + slipmatctl auth/cycle verified against live services.
 2. SwiftUI shell: pipeline sections, run cycle, settings (cookies paste).
 3. Library: repos + probe cache, Inbox, inline tag editing (title, artist,
    genre — written to the file; name edits rename), move/multi-select,

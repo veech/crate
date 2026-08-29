@@ -1,4 +1,4 @@
-import DJHeroCore
+import SlipmatCore
 import Foundation
 
 let arguments = CommandLine.arguments
@@ -27,7 +27,7 @@ case "ytm-search":
     }
 
 case "set":
-    guard arguments.count >= 4 else { print("usage: djheroctl set <key> <value>"); exit(1) }
+    guard arguments.count >= 4 else { print("usage: slipmatctl set <key> <value>"); exit(1) }
     try store.saveSettings([arguments[2]: arguments[3...].joined(separator: " ")])
     print("saved \(arguments[2])")
 
@@ -36,5 +36,5 @@ case "settings":
     print(s)
 
 default:
-    print("usage: djheroctl auth | cycle | ytm-search <query> | settings | set <key> <value>")
+    print("usage: slipmatctl auth | cycle | ytm-search <query> | settings | set <key> <value>")
 }

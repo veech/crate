@@ -2,7 +2,7 @@ import AVFoundation
 import AppKit
 import MediaPlayer
 import SwiftUI
-import DJHeroCore
+import SlipmatCore
 
 @Observable
 @MainActor

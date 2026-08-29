@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
-import DJHeroCore
+import SlipmatCore
 
 @main
-struct DJHeroApp: App {
+struct SlipmatApp: App {
     @State private var model = AppModel()
 
     init() {
@@ -11,7 +11,7 @@ struct DJHeroApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("djhero") {
+        WindowGroup("Slipmat") {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 920, minHeight: 520)

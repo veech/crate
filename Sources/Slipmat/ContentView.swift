@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import DJHeroCore
+import SlipmatCore
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model

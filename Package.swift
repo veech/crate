@@ -2,25 +2,25 @@
 import PackageDescription
 
 let package = Package(
-    name: "djhero",
+    name: "slipmat",
     platforms: [.macOS(.v15)],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
     ],
     targets: [
         .target(
-            name: "DJHeroCore",
+            name: "SlipmatCore",
             dependencies: [.product(name: "GRDB", package: "GRDB.swift")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
-            name: "djheroctl",
-            dependencies: ["DJHeroCore"],
+            name: "slipmatctl",
+            dependencies: ["SlipmatCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
-            name: "DJHero",
-            dependencies: ["DJHeroCore"],
+            name: "Slipmat",
+            dependencies: ["SlipmatCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

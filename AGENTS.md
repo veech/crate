@@ -1,4 +1,4 @@
-# djhero
+# slipmat
 
 Native Swift rewrite of `../djcopilot`. The old repo is the debugged reference
 implementation — when porting behavior, read the reference file first and match
@@ -8,8 +8,8 @@ in DESIGN.md says otherwise.
 ## Build and run
 
 - `swift build` — build everything (SwiftPM package; Xcode opens Package.swift).
-- `swift run djheroctl auth|cycle|ytm-search <q>` — headless CLI for testing.
-- `swift run DJHero` — the app.
+- `swift run slipmatctl auth|cycle|ytm-search <q>` — headless CLI for testing.
+- `swift run Slipmat` — the app.
 
 ## Conventions
 
@@ -20,6 +20,6 @@ in DESIGN.md says otherwise.
 - Always pass `--js-runtimes bun` to yt-dlp (deno stays preferred when
   present; bun is the smaller bundling target).
 - All user settings live in the SQLite settings table. No config files.
-- State lives in ~/Library/Application Support/djhero.
+- State lives in ~/Library/Application Support/slipmat.
 - Conventional Commits, single line, no body, no co-author trailers.
 - Commit each logical unit as it's completed.

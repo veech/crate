@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import DJHeroCore
+import SlipmatCore
 
 let losslessExts: Set<String> = ["flac", "wav", "aiff", "aif"]
 
