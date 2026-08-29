@@ -12,6 +12,7 @@ struct LibRow: Identifiable {
     var artist: String { file.artist }
     var genre: String { file.genre }
     var durationS: Double { file.durationS }
+    var ext: String { URL(fileURLWithPath: file.path).pathExtension.uppercased() }
 }
 
 // Table cells and menus render in bridged AppKit hosts where the observable
@@ -116,6 +117,11 @@ struct LibraryView: View {
                     .font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
             }
             .width(44)
+            TableColumn("Ext", value: \.ext) { row in
+                Text(row.ext)
+                    .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
+            }
+            .width(40)
             TableColumn("Source", value: \.source) { row in
                 Text(row.source)
                     .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
