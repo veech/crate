@@ -35,9 +35,10 @@ struct LibraryView: View {
         let pending = model.pendingUpgradeByPath
         let urls = model.sourceURLByPath
         return files.map { file in
-            let source = sources[file.path] ?? pending[file.path]
-                ?? (model.matchOutcome[file.path] == "none" ? "No match" : "")
-            return LibRow(file: file, source: source, sourceURL: urls[file.path])
+            let note = model.matchOutcome[file.path]
+            let source = sources[file.path] ?? pending[file.path] ?? note?.label ?? ""
+            return LibRow(file: file, source: source,
+                          sourceURL: urls[file.path] ?? note?.url)
         }
         .sorted(using: sortOrder)
     }
@@ -139,7 +140,8 @@ struct LibraryView: View {
                 HStack(spacing: 4) {
                     Text(row.source)
                         .font(.system(size: 10).monospaced())
-                        .foregroundStyle(row.source == "No match" ? .tertiary : .secondary)
+                        .foregroundStyle(["No match", "No DL"].contains(row.source)
+                                         ? .tertiary : .secondary)
                     if let raw = row.sourceURL, let url = URL(string: raw) {
                         IconButton(systemName: "arrow.up.right", size: 8, weight: .bold,
                                    hit: 20) { NSWorkspace.shared.open(url) }

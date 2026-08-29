@@ -7,31 +7,45 @@ public enum BackMatch {
         Set(Store.normalizeName("", s).split(separator: " ").map(String.init))
     }
 
-    /// Search → keep results that offer a download and fit the duration gate →
-    /// require name overlap → a lone strict survivor matches, anything murkier
-    /// goes to the LLM, which may reject them all.
+    public enum Outcome: Sendable {
+        case match(SCTrack)
+        /// The track is on SoundCloud but no upload offers a download.
+        case noDownload(SCTrack)
+        case none
+    }
+
+    /// Search → keep results that fit the duration gate and overlap on name →
+    /// among those offering a download, a lone strict survivor matches and
+    /// anything murkier goes to the LLM, which may reject them all.
     public static func find(title: String, artist: String, durationS: Int,
                             client: SoundCloudClient,
-                            settings: AppSettings) async -> SCTrack? {
+                            settings: AppSettings) async -> Outcome {
         guard let results = try? await client.searchTracks("\(artist) \(title)") else {
-            return nil
+            return .none
         }
         let wanted = tokens(title)
-        let candidates = results.filter { c in
-            (c.downloadable
-                || Gates.isGate(purchaseURL: c.purchaseURL, purchaseTitle: c.purchaseTitle))
-                && abs(c.durationS - durationS) <= Matcher.durationToleranceS
-        }.filter { c in
+        func strict(_ c: SCTrack) -> Bool {
+            tokens(c.rawTitle + " " + c.uploader).isSuperset(of: wanted)
+        }
+        let plausible = results.filter { c in
             let have = tokens(c.rawTitle + " " + c.uploader)
-            return wanted.isEmpty
-                || wanted.intersection(have).count * 2 >= wanted.count
+            return abs(c.durationS - durationS) <= Matcher.durationToleranceS
+                && (wanted.isEmpty || wanted.intersection(have).count * 2 >= wanted.count)
         }
-        guard !candidates.isEmpty else { return nil }
-        if candidates.count == 1,
-           tokens(candidates[0].rawTitle + " " + candidates[0].uploader).isSuperset(of: wanted) {
-            return candidates[0]
+        let offering = plausible.filter {
+            $0.downloadable
+                || Gates.isGate(purchaseURL: $0.purchaseURL, purchaseTitle: $0.purchaseTitle)
         }
-        let wrapped = candidates.map {
+        if offering.isEmpty {
+            if let found = plausible.first(where: strict) ?? plausible.first {
+                return .noDownload(found)
+            }
+            return .none
+        }
+        if offering.count == 1, strict(offering[0]) {
+            return .match(offering[0])
+        }
+        let wrapped = offering.map {
             YTMCandidate(videoId: $0.scId, title: $0.rawTitle,
                          artists: $0.uploader, durationS: $0.durationS)
         }
@@ -40,7 +54,8 @@ public enum BackMatch {
                   wanted: "\(title) — \(artist) (\(durationS)s)",
                   candidates: wrapped, key: settings.anthropicApiKey,
                   service: "SoundCloud"),
-              let id = verdict.videoId else { return nil }
-        return candidates.first { $0.scId == id }
+              let id = verdict.videoId,
+              let picked = offering.first(where: { $0.scId == id }) else { return .none }
+        return .match(picked)
     }
 }

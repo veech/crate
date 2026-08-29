@@ -23,6 +23,11 @@ struct DJHeroApp: App {
     }
 }
 
+struct MatchNote: Sendable {
+    let label: String
+    let url: String?
+}
+
 @Observable
 @MainActor
 final class AppModel {
@@ -39,7 +44,7 @@ final class AppModel {
     var cycling = false
     var matching = false
     var matchProgress: (done: Int, total: Int, hits: Int) = (0, 0, 0)
-    var matchOutcome: [String: String] = [:]
+    var matchOutcome: [String: MatchNote] = [:]
     var lastError: String?
 
     init() {
@@ -69,14 +74,23 @@ final class AppModel {
         loaded = true
     }
 
-    /// Provenance for Library rows, joined on the filed path.
+    /// Provenance for Library rows, joined on the filed path. The label is the
+    /// service the audio came from; the route detail stays in Pipeline.
     var sourceByPath: [String: String] {
         var out: [String: String] = [:]
         for track in tracks {
             guard let path = track.filePath else { continue }
-            out[path] = track.chosenSource.flatMap { sourceLabel[$0] } ?? ""
+            out[path] = Self.serviceLabel(track)
         }
         return out
+    }
+
+    static func serviceLabel(_ track: Track) -> String {
+        if track.chosenSource == "ytm" { return "YT" }
+        if track.chosenSource == "purchase" { return "BP" }
+        if !track.scURL.isEmpty { return "SC" }
+        if track.bpId != nil { return "BP" }
+        return ""
     }
 
     func addRepo(_ url: URL) {
@@ -109,17 +123,24 @@ final class AppModel {
             }
             let settings = (try? store.loadSettings()) ?? AppSettings()
             for (i, file) in files.enumerated() {
-                if let sc = await BackMatch.find(
-                       title: file.title, artist: file.artist,
-                       durationS: Int(file.durationS.rounded()),
-                       client: client, settings: settings),
-                   let id = try? store.insertBackMatch(
-                       sc, title: file.title, artist: file.artist, upgradePath: file.path),
-                   id != nil {
-                    matchProgress.hits += 1
-                    refresh()
-                } else {
-                    matchOutcome[file.path] = "none"
+                let outcome = await BackMatch.find(
+                    title: file.title, artist: file.artist,
+                    durationS: Int(file.durationS.rounded()),
+                    client: client, settings: settings)
+                switch outcome {
+                case .match(let sc):
+                    if let id = try? store.insertBackMatch(
+                           sc, title: file.title, artist: file.artist,
+                           upgradePath: file.path), id != nil {
+                        matchProgress.hits += 1
+                        refresh()
+                    } else {
+                        matchOutcome[file.path] = MatchNote(label: "No match", url: sc.scURL)
+                    }
+                case .noDownload(let sc):
+                    matchOutcome[file.path] = MatchNote(label: "No DL", url: sc.scURL)
+                case .none:
+                    matchOutcome[file.path] = MatchNote(label: "No match", url: nil)
                 }
                 matchProgress.done = i + 1
                 try? await Task.sleep(for: .seconds(1))
