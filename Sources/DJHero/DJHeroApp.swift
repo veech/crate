@@ -39,6 +39,7 @@ final class AppModel {
     var cycling = false
     var matching = false
     var matchProgress: (done: Int, total: Int, hits: Int) = (0, 0, 0)
+    var matchOutcome: [String: String] = [:]
     var lastError: String?
 
     init() {
@@ -89,11 +90,13 @@ final class AppModel {
     }
 
     /// Search SoundCloud for uploads of these files that offer a download; hits
-    /// enter the pipeline aimed at upgrading the old rip in place.
-    func findFreeDL(_ files: [LibraryFile]) {
+    /// enter the pipeline aimed at upgrading the old rip in place. Outcomes show
+    /// per row in the Source column as the sweep progresses.
+    func findSources(_ files: [LibraryFile]) {
         guard !matching, !files.isEmpty else { return }
         matching = true
         matchProgress = (0, files.count, 0)
+        for file in files { matchOutcome.removeValue(forKey: file.path) }
         Task {
             defer { matching = false }
             let client: SoundCloudClient
@@ -114,6 +117,9 @@ final class AppModel {
                        sc, title: file.title, artist: file.artist, upgradePath: file.path),
                    id != nil {
                     matchProgress.hits += 1
+                    refresh()
+                } else {
+                    matchOutcome[file.path] = "none"
                 }
                 matchProgress.done = i + 1
                 try? await Task.sleep(for: .seconds(1))
@@ -121,6 +127,20 @@ final class AppModel {
             refresh()
             if matchProgress.hits > 0 { runCycle() }
         }
+    }
+
+    /// Pipeline state for files still awaiting their in-place upgrade.
+    var pendingUpgradeByPath: [String: String] {
+        var out: [String: String] = [:]
+        for track in tracks where track.status != "filed" {
+            guard let up = track.upgradePath, !up.isEmpty else { continue }
+            switch track.status {
+            case "held_gate": out[up] = "Gate held"
+            case "needs_review": out[up] = "Review"
+            default: out[up] = "Upgrading…"
+            }
+        }
+        return out
     }
 
     func retag(_ file: LibraryFile, title: String, artist: String,

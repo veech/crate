@@ -31,8 +31,13 @@ struct LibraryView: View {
 
     var rows: [LibRow] {
         let sources = model.sourceByPath
-        return files.map { LibRow(file: $0, source: sources[$0.path] ?? "") }
-            .sorted(using: sortOrder)
+        let pending = model.pendingUpgradeByPath
+        return files.map { file in
+            let source = sources[file.path] ?? pending[file.path]
+                ?? (model.matchOutcome[file.path] == "none" ? "No match" : "")
+            return LibRow(file: file, source: source)
+        }
+        .sorted(using: sortOrder)
     }
 
     var body: some View {
@@ -130,9 +135,10 @@ struct LibraryView: View {
             .width(40)
             TableColumn("Source", value: \.source) { row in
                 Text(row.source)
-                    .font(.system(size: 10).monospaced()).foregroundStyle(.secondary)
+                    .font(.system(size: 10).monospaced())
+                    .foregroundStyle(row.source == "No match" ? .tertiary : .secondary)
             }
-            .width(64)
+            .width(80)
         }
         .contextMenu(forSelectionType: String.self) { paths in
             contextMenu(paths)
@@ -164,9 +170,9 @@ struct LibraryView: View {
         let candidates = files.filter { paths.contains($0.path) && !pipelinePaths.contains($0.path) }
         if !candidates.isEmpty {
             Button(candidates.count > 1
-                   ? "Find Free DLs on SoundCloud (\(candidates.count))"
-                   : "Find Free DL on SoundCloud") {
-                model.findFreeDL(candidates)
+                   ? "Find Sources on SoundCloud (\(candidates.count))"
+                   : "Find Source on SoundCloud") {
+                model.findSources(candidates)
             }
             .disabled(model.matching)
         }
