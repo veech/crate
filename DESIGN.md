@@ -98,6 +98,8 @@ as-is since it is existing normalize behavior.
 4. Gate flow UI: open gate + select the downloaded file (gates rarely
    expose a copyable final URL — learned in reference testing; the
    paste-a-link flow is dead). Needs-review candidate picker.
-5. Packaging: .app bundle, bundled binaries, yt-dlp self-update.
+5. Packaging: .app bundle via scripts/package.sh (ad-hoc signed; ffmpeg
+   and yt-dlp still resolved from Homebrew). Remaining: bundled binaries,
+   yt-dlp self-update, real signing + Keychain for the API key.
 6. Post-MVP: Analyze (quality model, key, BPM — see reference conversation;
    quality via a frozen PyInstaller CLI if adopted).
