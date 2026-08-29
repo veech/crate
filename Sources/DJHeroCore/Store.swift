@@ -383,6 +383,29 @@ public final class Store: Sendable {
         }
     }
 
+    /// Detach a library file from the pipeline: filed records forget the path
+    /// (their history stays), and a pending upgrade aimed at it is withdrawn.
+    public func clearSource(forPath path: String) throws {
+        try dbQueue.write { db in
+            for row in try Row.fetchAll(
+                db, sql: "SELECT id FROM tracks WHERE file_path = ?", arguments: [path]) {
+                let id: Int64 = row["id"]
+                try db.execute(sql: "UPDATE tracks SET file_path = NULL WHERE id = ?",
+                               arguments: [id])
+                try db.execute(
+                    sql: "INSERT INTO track_events (track_id, event, detail) VALUES (?, ?, ?)",
+                    arguments: [id, "Source link cleared", path])
+            }
+            for row in try Row.fetchAll(
+                db, sql: "SELECT id FROM tracks WHERE upgrade_path = ? AND status != 'filed'",
+                arguments: [path]) {
+                let id: Int64 = row["id"]
+                try db.execute(sql: "DELETE FROM track_events WHERE track_id = ?", arguments: [id])
+                try db.execute(sql: "DELETE FROM tracks WHERE id = ?", arguments: [id])
+            }
+        }
+    }
+
     /// A moved file keeps its probe cache, and its pipeline record follows it.
     public func relocateFile(from old: String, to new: String) throws {
         try dbQueue.write { db in

@@ -184,6 +184,14 @@ final class AppModel {
         return out
     }
 
+    func clearSource(_ files: [LibraryFile]) {
+        for file in files {
+            try? store.clearSource(forPath: file.path)
+            matchOutcome.removeValue(forKey: file.path)
+        }
+        refresh()
+    }
+
     func retag(_ file: LibraryFile, title: String, artist: String,
                genre: String) async -> LibraryFile? {
         do {

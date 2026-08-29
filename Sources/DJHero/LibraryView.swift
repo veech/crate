@@ -191,6 +191,16 @@ struct LibraryView: View {
             }
             .disabled(model.matching)
         }
+        let sourced = files.filter {
+            paths.contains($0.path)
+                && (pipelinePaths.contains($0.path) || model.matchOutcome[$0.path] != nil)
+        }
+        if !sourced.isEmpty {
+            Button(sourced.count > 1 ? "Clear Source Info (\(sourced.count))"
+                                     : "Clear Source Info") {
+                model.clearSource(sourced)
+            }
+        }
         Button("Show in Finder") {
             NSWorkspace.shared.activateFileViewerSelecting(paths.map { URL(fileURLWithPath: $0) })
         }
