@@ -38,6 +38,8 @@ enum Col {
     static let time: CGFloat = 42
     static let event: CGFloat = 240
     static let actions: CGFloat = 250
+    /// Fixed columns + spacing + padding, plus room for the title to breathe.
+    static let minContent: CGFloat = 940
 }
 
 struct PipelineView: View {
@@ -47,14 +49,22 @@ struct PipelineView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    ForEach(stages) { stage in
-                        section(stage)
+            // Fixed-width columns scroll sideways below their natural width
+            // instead of crushing the title and clipping the action buttons.
+            GeometryReader { geo in
+                ScrollView(.horizontal) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 28) {
+                            ForEach(stages) { stage in
+                                section(stage)
+                            }
+                        }
+                        .padding(20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(width: max(geo.size.width, Col.minContent),
+                           height: geo.size.height)
                 }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
