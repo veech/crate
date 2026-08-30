@@ -31,7 +31,8 @@ Two halves:
 **Analyze**: quality is live — an on-demand Library action ("Analyze
 Quality") scoring tracks with Meta's audiobox-aesthetics model via a
 uv-installed CLI (`uv tool install audiobox-aesthetics --with requests
---with torchcodec`; torchcodec needs Homebrew ffmpeg ≤7 dylibs). PQ shows
+--with torchcodec`; torchcodec loads its libav dylibs from the keg-only
+`ffmpeg@7`, so the main ffmpeg stays unpinned). PQ shows
 in the sortable Quality column (all four axes in the tooltip); scores live
 in `file_analysis`, DB-only, never in tags, invalidated when an upgrade
 replaces the audio. Still post-MVP: key (Camelot) and BPM. The pipeline's

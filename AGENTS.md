@@ -11,7 +11,7 @@ in DESIGN.md says otherwise.
 - `swift run slipmatctl auth|cycle|ytm-search <q>` — headless CLI for testing.
 - `swift run Slipmat
 - Package the app: ./scripts/package.sh (produces dist/Slipmat.app)
-- Quality analysis needs: uv tool install audiobox-aesthetics --with requests --with torchcodec` — the app.
+- Quality analysis needs: uv tool install audiobox-aesthetics --with requests --with torchcodec, plus brew install ffmpeg@7 (torchcodec's dylibs; the main ffmpeg is unpinned)` — the app.
 
 ## Conventions
 

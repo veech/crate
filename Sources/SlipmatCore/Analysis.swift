@@ -31,10 +31,12 @@ public enum Analyzer {
         try lines.joined(separator: "\n").write(to: input, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: input) }
 
-        // torchcodec resolves Homebrew's ffmpeg dylibs through the fallback path.
+        // torchcodec links versioned libav dylibs (ffmpeg 4-7 today). The
+        // keg-only ffmpeg@7 keeps those stable while the main ffmpeg floats.
         let result = try await ProcessRunner.run(
             tool, [input.path, "--batch-size", "8"],
-            env: ["DYLD_FALLBACK_LIBRARY_PATH": "/opt/homebrew/lib"])
+            env: ["DYLD_FALLBACK_LIBRARY_PATH":
+                    "/opt/homebrew/opt/ffmpeg@7/lib:/opt/homebrew/lib"])
         guard result.status == 0 else {
             throw DJError("audio-aes failed: " + YtDlp.tail(result.stderrText))
         }
