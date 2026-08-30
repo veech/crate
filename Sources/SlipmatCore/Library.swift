@@ -98,8 +98,17 @@ public struct LibraryScanner: Sendable {
             guard let attrs = try? fm.attributesOfItem(atPath: url.path),
                   let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970,
                   let size = (attrs[.size] as? NSNumber)?.int64Value else { continue }
+            // iCloud can evict a file's content: it still lists, but reads
+            // nothing. Ask for it back, and never probe the empty shell —
+            // eviction preserves mtime and size, so a bad probe would stick.
+            let allocated = (try? url.resourceValues(forKeys: [.fileAllocatedSizeKey]))?
+                .fileAllocatedSize ?? 1
+            let dataless = allocated == 0 && size > 0
+            if dataless { try? fm.startDownloadingUbiquitousItem(at: url) }
             if let hit = cached[url.path], hit.mtime == mtime, hit.size == size {
                 files.append(hit)
+            } else if dataless {
+                files.append(placeholder(url, mtime: mtime, size: size))
             } else {
                 stale.append((url, mtime, size))
             }
@@ -107,16 +116,17 @@ public struct LibraryScanner: Sendable {
 
         for start in stride(from: 0, to: stale.count, by: 4) {
             let chunk = Array(stale[start..<min(start + 4, stale.count)])
-            let probed = await withTaskGroup(of: LibraryFile.self) { group -> [LibraryFile] in
+            let probed = await withTaskGroup(of: (LibraryFile, Bool).self) { group
+                -> [(LibraryFile, Bool)] in
                 for (url, mtime, size) in chunk {
                     group.addTask { await probe(url, mtime: mtime, size: size) }
                 }
-                var out: [LibraryFile] = []
+                var out: [(LibraryFile, Bool)] = []
                 for await f in group { out.append(f) }
                 return out
             }
-            for f in probed { try? store.upsertLibraryFile(f) }
-            files += probed
+            for (f, cacheable) in probed where cacheable { try? store.upsertLibraryFile(f) }
+            files += probed.map(\.0)
         }
 
         let live = Set(urls.map(\.path))
@@ -126,20 +136,31 @@ public struct LibraryScanner: Sendable {
         }
     }
 
-    /// An unprobeable file still lists, named by its filename.
-    func probe(_ url: URL, mtime: Double, size: Int64) async -> LibraryFile {
-        let tags = await FFmpeg.probeTags(url) ?? FFmpeg.ProbedTags()
+    func placeholder(_ url: URL, mtime: Double, size: Int64) -> LibraryFile {
+        LibraryFile(path: url.path, mtime: mtime, size: size,
+                    title: url.deletingPathExtension().lastPathComponent,
+                    artist: "", genre: "", durationS: 0, artPath: nil)
+    }
+
+    /// An unprobeable file still lists, named by its filename — but only a
+    /// complete probe is cached, so failures retry on the next scan.
+    func probe(_ url: URL, mtime: Double, size: Int64) async -> (LibraryFile, Bool) {
+        guard let tags = await FFmpeg.probeTags(url) else {
+            return (placeholder(url, mtime: mtime, size: size), false)
+        }
         var artPath: String?
         if tags.hasArt {
             let out = artDir.appendingPathComponent(Self.hash(url.path) + ".jpg")
             if await FFmpeg.extractArtThumb(url, to: out) { artPath = out.path }
         }
         let stem = url.deletingPathExtension().lastPathComponent
-        return LibraryFile(
+        let file = LibraryFile(
             path: url.path, mtime: mtime, size: size,
             title: tags.title.isEmpty ? stem : tags.title,
             artist: tags.artist, genre: tags.genre,
             durationS: tags.durationS, artPath: artPath)
+        let complete = tags.durationS > 0 && (!tags.hasArt || artPath != nil)
+        return (file, complete)
     }
 
     static func hash(_ s: String) -> String {
