@@ -20,26 +20,31 @@ public struct FileAnalysis: Sendable {
 /// bad rips and live recordings. Scores stay in the DB, never in tags.
 public enum Analyzer {
     /// torch's MPS backend has hung the GPU driver under sustained load — a
-    /// hard system freeze, not a crash. This shim blinds torch to the GPU so
-    /// inference stays on CPU; slower, but it cannot take the machine down.
-    static func cpuForceDir(_ cacheDir: URL) throws -> URL {
-        let dir = cacheDir.appendingPathComponent("cpu-force", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let shim = """
-            try:
-                import torch
-                torch.backends.mps.is_available = lambda: False
-            except Exception:
-                pass
-            """
-        try shim.write(to: dir.appendingPathComponent("sitecustomize.py"),
-                       atomically: true, encoding: .utf8)
-        return dir
+    /// hard system freeze, not a crash — and offers no switch to refuse the
+    /// GPU (verified against torch 2.13). So the tool runs through its own
+    /// python with the patch in the open: MPS is disabled on the way in and
+    /// inference stays on CPU. Slower, but it cannot take the machine down.
+    static let bootstrap = """
+        import sys
+        import torch
+        torch.backends.mps.is_available = lambda: False
+        from audiobox_aesthetics.cli import app
+        sys.exit(app())
+        """
+
+    static func toolPython() throws -> URL {
+        let python = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/share/uv/tools/audiobox-aesthetics/bin/python3")
+        guard FileManager.default.isExecutableFile(atPath: python.path) else {
+            throw DJError("audio-aes not installed — run: uv tool install"
+                + " audiobox-aesthetics --with requests --with torchcodec")
+        }
+        return python
     }
 
     /// Results come back in input order, one per path.
     public static func run(_ paths: [String], cacheDir: URL) async throws -> [FileAnalysis] {
-        let tool = try Binaries.find("audio-aes")
+        let tool = try toolPython()
         var lines: [String] = []
         for path in paths {
             let data = try JSONSerialization.data(withJSONObject: ["path": path])
@@ -52,10 +57,9 @@ public enum Analyzer {
         // torchcodec links versioned libav dylibs (ffmpeg 4-7 today). The
         // keg-only ffmpeg@7 keeps those stable while the main ffmpeg floats.
         let result = try await ProcessRunner.run(
-            tool, [input.path, "--batch-size", "1"],
+            tool, ["-c", Self.bootstrap, input.path, "--batch-size", "1"],
             env: ["DYLD_FALLBACK_LIBRARY_PATH":
-                    "/opt/homebrew/opt/ffmpeg@7/lib:/opt/homebrew/lib",
-                  "PYTHONPATH": try cpuForceDir(cacheDir).path])
+                    "/opt/homebrew/opt/ffmpeg@7/lib:/opt/homebrew/lib"])
         guard result.status == 0 else {
             throw DJError("audio-aes failed: " + YtDlp.tail(result.stderrText))
         }
