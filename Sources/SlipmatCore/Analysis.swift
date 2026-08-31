@@ -19,6 +19,24 @@ public struct FileAnalysis: Sendable {
 /// --with torchcodec`). PQ — production quality — is the axis that exposes
 /// bad rips and live recordings. Scores stay in the DB, never in tags.
 public enum Analyzer {
+    /// torch's MPS backend has hung the GPU driver under sustained load — a
+    /// hard system freeze, not a crash. This shim blinds torch to the GPU so
+    /// inference stays on CPU; slower, but it cannot take the machine down.
+    static func cpuForceDir(_ cacheDir: URL) throws -> URL {
+        let dir = cacheDir.appendingPathComponent("cpu-force", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let shim = """
+            try:
+                import torch
+                torch.backends.mps.is_available = lambda: False
+            except Exception:
+                pass
+            """
+        try shim.write(to: dir.appendingPathComponent("sitecustomize.py"),
+                       atomically: true, encoding: .utf8)
+        return dir
+    }
+
     /// Results come back in input order, one per path.
     public static func run(_ paths: [String], cacheDir: URL) async throws -> [FileAnalysis] {
         let tool = try Binaries.find("audio-aes")
@@ -34,9 +52,10 @@ public enum Analyzer {
         // torchcodec links versioned libav dylibs (ffmpeg 4-7 today). The
         // keg-only ffmpeg@7 keeps those stable while the main ffmpeg floats.
         let result = try await ProcessRunner.run(
-            tool, [input.path, "--batch-size", "8"],
+            tool, [input.path, "--batch-size", "1"],
             env: ["DYLD_FALLBACK_LIBRARY_PATH":
-                    "/opt/homebrew/opt/ffmpeg@7/lib:/opt/homebrew/lib"])
+                    "/opt/homebrew/opt/ffmpeg@7/lib:/opt/homebrew/lib",
+                  "PYTHONPATH": try cpuForceDir(cacheDir).path])
         guard result.status == 0 else {
             throw DJError("audio-aes failed: " + YtDlp.tail(result.stderrText))
         }
