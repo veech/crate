@@ -300,11 +300,15 @@ struct LibraryView: View {
                 model.upgrade(upgradeables.map(\.file))
             }
         }
-        let unanalyzed = files.filter { paths.contains($0.path) && model.analyses[$0.path] == nil }
-        if !unanalyzed.isEmpty {
-            Button(unanalyzed.count > 1 ? "Analyze Quality (\(unanalyzed.count))"
-                                        : "Analyze Quality") {
-                model.analyze(unanalyzed)
+        let selected = files.filter { paths.contains($0.path) }
+        let unanalyzed = selected.filter { model.analyses[$0.path] == nil }
+        // Scores are deterministic, so fresh files are the default target;
+        // an all-analyzed selection offers an explicit re-run instead.
+        let targets = unanalyzed.isEmpty ? selected : unanalyzed
+        if !targets.isEmpty {
+            let verb = unanalyzed.isEmpty ? "Re-analyze Quality" : "Analyze Quality"
+            Button(targets.count > 1 ? "\(verb) (\(targets.count))" : verb) {
+                model.analyze(targets)
             }
             .disabled(model.analyzing)
         }
