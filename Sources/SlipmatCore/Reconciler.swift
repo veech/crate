@@ -306,6 +306,10 @@ public actor Reconciler {
                                   "Spectral cliff (\(spectrum)) — consider buying this one")
             }
             let art = await fetchArt(track.artURL)
+            if art == nil {
+                try? store.record(track.id, "Warning: filed without artwork",
+                                  track.artURL.isEmpty ? "no art URL" : track.artURL)
+            }
             try await FFmpeg.stripAndTag(converted, title: title, artist: track.artist,
                                          art: art)
             let dest: URL
