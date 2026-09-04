@@ -53,7 +53,7 @@ struct LibraryView: View {
 
     @State private var files: [LibraryFile] = []
     @State private var selection = Set<String>()
-    @State private var sortOrder = [KeyPathComparator(\LibRow.title)]
+    @State private var sortOrder = [KeyPathComparator(\LibRow.mtime, order: .reverse)]
     @State private var scanning = false
     @State private var note: String?
     @State private var keyMonitor: Any?
