@@ -34,7 +34,9 @@ public enum FFmpeg {
             try art.write(to: file)
             artFile = file
             args += ["-i", file.path, "-map", "0:a", "-map", "1",
-                     "-c:a", "copy", "-c:v", "mjpeg", "-disposition:v", "attached_pic"]
+                     "-c:a", "copy", "-c:v", "mjpeg", "-disposition:v", "attached_pic",
+                     // rekordbox only shows FLAC art typed Cover (front).
+                     "-metadata:s:v", "comment=Cover (front)"]
         } else {
             args += ["-map", "0:a", "-c:a", "copy"]
         }
