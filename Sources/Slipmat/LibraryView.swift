@@ -58,8 +58,24 @@ struct LibraryView: View {
     @State private var note: String?
     @State private var keyMonitor: Any?
     @State private var confirmEmpty = false
+    @State private var query = ""
+    @FocusState private var searchFocused: Bool
 
     var isTrash: Bool { folder == model.cfg.trashDir.path }
+
+    /// Every whitespace-separated term must hit title, artist, or genre.
+    var visibleFiles: [LibraryFile] {
+        let terms = query.split(whereSeparator: \.isWhitespace)
+        guard !terms.isEmpty else { return files }
+        return files.filter { file in
+            terms.allSatisfy { term in
+                [file.title, file.artist, file.genre].contains {
+                    $0.range(of: term,
+                             options: [.caseInsensitive, .diacriticInsensitive]) != nil
+                }
+            }
+        }
+    }
 
     var rows: [LibRow] {
         let sources = model.sourceByPath
@@ -72,7 +88,7 @@ struct LibraryView: View {
                 filedOffersDL[path] = !track.gateURL.isEmpty || track.scDownloadable
             }
         }
-        return files.map { file in
+        return visibleFiles.map { file in
             let src = discovered[file.path]
             let upgrade: UpgradeState
             if let state = pending[file.path] {
@@ -103,12 +119,21 @@ struct LibraryView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if model.player.current != nil { PlayerBar(player: model.player) }
         }
+        .searchable(text: $query, placement: .toolbar)
+        .searchFocused($searchFocused)
+        .background {
+            Button("") { searchFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+        }
         .task(id: folder) {
             selection = []
             note = nil
+            query = ""
             await rescan()
         }
         .onChange(of: sortOrder) { model.player.syncQueue(rows.map(\.file)) }
+        .onChange(of: query) { model.player.syncQueue(rows.map(\.file)) }
         .onChange(of: model.player.current?.path) {
             // Selection follows playback, but never tramples a multi-select.
             guard selection.count <= 1,
@@ -147,7 +172,8 @@ struct LibraryView: View {
     var header: some View {
         HStack {
             Text(name).font(.headline)
-            Text("\(files.count)").font(.caption.monospaced()).foregroundStyle(.secondary)
+            Text(query.isEmpty ? "\(files.count)" : "\(rows.count) of \(files.count)")
+                .font(.caption.monospaced()).foregroundStyle(.secondary)
             if scanning { ProgressView().controlSize(.small) }
             if model.matching {
                 ProgressView().controlSize(.small)
@@ -279,8 +305,8 @@ struct LibraryView: View {
             move(selection, to: model.cfg.trashDir.path)
         }
         .overlay {
-            if files.isEmpty && !scanning {
-                Text("No audio files here yet")
+            if rows.isEmpty && !scanning {
+                Text(files.isEmpty ? "No audio files here yet" : "No matches")
                     .font(.caption).foregroundStyle(.tertiary)
             }
         }
