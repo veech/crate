@@ -119,8 +119,6 @@ struct LibraryView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if model.player.current != nil { PlayerBar(player: model.player) }
         }
-        .searchable(text: $query, placement: .toolbar)
-        .searchFocused($searchFocused)
         .background {
             Button("") { searchFocused = true }
                 .keyboardShortcut("f", modifiers: .command)
@@ -193,6 +191,7 @@ struct LibraryView: View {
                 Text(note).font(.caption).foregroundStyle(.orange).lineLimit(1)
                     .help(note)
             }
+            searchField
             if isTrash {
                 Button("Empty Trash", role: .destructive) { confirmEmpty = true }
                     .disabled(files.isEmpty)
@@ -214,6 +213,29 @@ struct LibraryView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    var searchField: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 10)).foregroundStyle(.secondary)
+            TextField("Search", text: $query)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused($searchFocused)
+                .onExitCommand {
+                    query = ""
+                    searchFocused = false
+                }
+            if !query.isEmpty {
+                IconButton(systemName: "xmark.circle.fill", size: 10, hit: 16) { query = "" }
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        .frame(width: 180)
     }
 
     var table: some View {
