@@ -105,7 +105,10 @@ public struct LibraryScanner: Sendable {
                 .fileAllocatedSize ?? 1
             let dataless = allocated == 0 && size > 0
             if dataless { try? fm.startDownloadingUbiquitousItem(at: url) }
-            if let hit = cached[url.path], hit.mtime == mtime, hit.size == size {
+            // Only complete probes are cached, so a zero-duration row is
+            // garbage from an older cache; fall through and re-probe it.
+            if let hit = cached[url.path], hit.mtime == mtime, hit.size == size,
+               hit.durationS > 0 {
                 files.append(hit)
             } else if dataless {
                 files.append(placeholder(url, mtime: mtime, size: size))
