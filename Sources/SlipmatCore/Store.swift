@@ -337,6 +337,16 @@ public final class Store: Sendable {
         }
     }
 
+    /// Remove a track and its dossier outright. The source identity frees up:
+    /// if it is still in a queue playlist, the next poll re-enters it fresh.
+    public func deleteTrack(_ trackId: Int64) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM track_events WHERE track_id = ?",
+                           arguments: [trackId])
+            try db.execute(sql: "DELETE FROM tracks WHERE id = ?", arguments: [trackId])
+        }
+    }
+
     /// The filed audio is the wrong recording: remember the rejected video id
     /// so resolve never picks it again, and send the track back through.
     public func rejectYtmMatch(_ trackId: Int64) throws {

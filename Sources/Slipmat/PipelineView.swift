@@ -178,26 +178,24 @@ struct TrackRow: View {
         .padding(.vertical, 5)
     }
 
-    @ViewBuilder
     var actionsCell: some View {
-        if track.status == "held_gate" {
-            HStack(spacing: 6) {
+        HStack(spacing: 6) {
+            if track.status == "held_gate" {
                 Button("Open gate") {
                     if let url = URL(string: track.gateURL) { NSWorkspace.shared.open(url) }
                 }
                 Button("Choose file…") { selectGateFile() }
                 Button("Just rip") { model.justRip(track) }
-            }
-            .controlSize(.small)
-        } else if track.status == "needs_review" {
-            HStack(spacing: 6) {
+            } else if track.status == "needs_review" {
                 Button("Retry") { model.retry(track) }
                 Button("Buy instead") { model.sendToBuyList(track) }
             }
-            .controlSize(.small)
-        } else {
-            Color.clear.frame(height: 1)
+            IconButton(systemName: "xmark.circle.fill", size: 10, hit: 16) {
+                model.deleteFromPipeline(track)
+            }
+            .help("Remove from pipeline")
         }
+        .controlSize(.small)
     }
 
     func selectGateFile() {

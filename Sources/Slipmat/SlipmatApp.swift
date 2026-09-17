@@ -341,6 +341,16 @@ final class AppModel {
         refresh()
     }
 
+    /// Removes the row and any staged download; the collection is untouched.
+    func deleteFromPipeline(_ track: Track) {
+        guard track.status != "filed" else { return }
+        if let path = track.filePath, path.hasPrefix(cfg.stagingDir.path) {
+            try? FileManager.default.removeItem(atPath: path)
+        }
+        try? store.deleteTrack(track.id)
+        refresh()
+    }
+
     private var cycleTask: Task<Void, Never>?
 
     func runCycle() {

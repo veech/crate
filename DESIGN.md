@@ -13,6 +13,10 @@ Two halves:
    the video is the source), and Beatport keepers playlist in; resolve →
    fetch → normalize → file. Same state machine, same event log, same policies (rip first, buy
    keepers, 256k floor, credential-gated fetches, no external writes).
+   Any pre-filed row deletes outright from its lane — row, events, and any
+   staged download go. The source identity frees up, so a track still in
+   its queue playlist re-enters on the next poll; keeping the playlists
+   clean before a cycle is the user's job.
 2. **Library** — repositories of local folders (genre folders), with
    **Inbox** as the pinned landing repo the pipeline files into. Tracks
    keep their source dossier. Integrated audition player (scrub to judge
