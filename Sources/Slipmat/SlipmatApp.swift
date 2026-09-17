@@ -185,11 +185,10 @@ final class AppModel {
                                           native: track.scDownloadable)
                 started += 1
             } else if let src = fileSources[file.path], src.offersDL,
-                      let id = try? store.insertBackMatch(
+                      (try? store.insertBackMatch(
                           src, title: file.title, artist: file.artist,
                           durationS: Int(file.durationS.rounded()),
-                          upgradePath: file.path),
-                      id != nil {
+                          upgradePath: file.path)) != nil {
                 started += 1
             }
         }
