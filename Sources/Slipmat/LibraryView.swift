@@ -422,7 +422,8 @@ struct LibraryView: View {
     func move(_ paths: Set<String>, to dest: String) {
         Task {
             let result = model.scanner.move(
-                Array(paths), to: URL(fileURLWithPath: dest, isDirectory: true))
+                Array(paths), to: URL(fileURLWithPath: dest, isDirectory: true),
+                uniquing: dest == model.cfg.trashDir.path)
             note = result.skipped.isEmpty ? nil
                 : "Skipped, name already at destination: " + result.skipped.joined(separator: ", ")
             selection = []

@@ -324,7 +324,7 @@ final class AppModel {
         guard track.status == "filed", track.chosenSource == "ytm",
               let path = track.filePath else { return }
         if player.current?.path == path { player.stop() }
-        _ = scanner.move([path], to: cfg.trashDir)
+        _ = scanner.move([path], to: cfg.trashDir, uniquing: true)
         try? store.rejectYtmMatch(track.id)
         refresh()
         runCycle()

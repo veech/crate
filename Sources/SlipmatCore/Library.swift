@@ -209,16 +209,28 @@ public struct LibraryScanner: Sendable {
     }
 
     /// Existing names at the destination are left alone and reported back.
-    public func move(_ paths: [String], to folder: URL) -> (moved: Int, skipped: [String]) {
+    /// With `uniquing`, a colliding name gets a numeric suffix instead — for
+    /// destinations like the trash, where names carry no identity.
+    public func move(_ paths: [String], to folder: URL,
+                     uniquing: Bool = false) -> (moved: Int, skipped: [String]) {
         let fm = FileManager.default
         var moved = 0
         var skipped: [String] = []
         for path in paths {
             let name = URL(fileURLWithPath: path).lastPathComponent
-            let dest = folder.appendingPathComponent(name)
-            guard !fm.fileExists(atPath: dest.path) else {
-                skipped.append(name)
-                continue
+            var dest = folder.appendingPathComponent(name)
+            if fm.fileExists(atPath: dest.path) {
+                guard uniquing else {
+                    skipped.append(name)
+                    continue
+                }
+                let stem = dest.deletingPathExtension().lastPathComponent
+                let ext = dest.pathExtension.isEmpty ? "" : ".\(dest.pathExtension)"
+                var n = 2
+                repeat {
+                    dest = folder.appendingPathComponent("\(stem) \(n)\(ext)")
+                    n += 1
+                } while fm.fileExists(atPath: dest.path)
             }
             do {
                 try fm.moveItem(atPath: path, toPath: dest.path)
