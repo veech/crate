@@ -64,11 +64,11 @@ public actor Reconciler {
     // MARK: polls
 
     func pollBeatport(_ settings: AppSettings) async {
-        guard !settings.bpKeepersPlaylist.isEmpty,
+        guard !settings.bpQueuePlaylist.isEmpty,
               FileManager.default.fileExists(atPath: cfg.cookies("beatport").path) else { return }
         do {
             let client = try await BeatportClient(cookiesFile: cfg.cookies("beatport"))
-            let playlistId = try await client.findPlaylist(named: settings.bpKeepersPlaylist)
+            let playlistId = try await client.findPlaylist(named: settings.bpQueuePlaylist)
             for track in try await client.playlistTracks(playlistId) {
                 _ = try store.upsertBeatport(track)
             }

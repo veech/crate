@@ -10,9 +10,13 @@ Two halves:
 
 1. **Pipeline** — the ported djcopilot acquisition flow: SoundCloud Queue
    playlist, a YouTube queue playlist (by URL; items are pre-resolved since
-   the video is the source), and Beatport keepers playlist in; resolve →
-   fetch → normalize → file. Same state machine, same event log, same policies (rip first, buy
-   keepers, 256k floor, credential-gated fetches, no external writes).
+   the video is the source), and a Beatport queue playlist in; resolve →
+   fetch → normalize → file. The reference called the Beatport playlist
+   "keepers" — the buy list by intent. Retired: the app never consumed
+   that intent, so the playlist is a plain queue like the other two, and
+   buy intent is recorded only by `buy_list`. Same state machine, same
+   event log, same policies (rip first, buy what earns rotation, 256k
+   floor, credential-gated fetches, no external writes).
    Any pre-filed row deletes outright from its lane — row, events, and any
    staged download go. The source identity frees up, so a track still in
    its queue playlist re-enters on the next poll; keeping the playlists

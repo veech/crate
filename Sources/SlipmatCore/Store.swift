@@ -57,7 +57,7 @@ public struct AppSettings: Sendable {
 
     public var scQueuePlaylist = "Queue"
     public var ytQueuePlaylist = ""
-    public var bpKeepersPlaylist = ""
+    public var bpQueuePlaylist = ""
     public var targetFormat = "flac"
     public var pollMinutes = 0
     public var anthropicModel = "claude-opus-5"
@@ -138,6 +138,11 @@ public final class Store: Sendable {
             // Databases created before the column existed pick it up here.
             _ = try? db.execute(sql: "ALTER TABLE tracks ADD COLUMN upgrade_path TEXT")
             _ = try? db.execute(sql: "ALTER TABLE tracks ADD COLUMN rejected_ytm_ids TEXT")
+            // Settings saved under a key's earlier name carry over.
+            _ = try? db.execute(sql: """
+                UPDATE settings SET key = 'bp_queue_playlist'
+                WHERE key = 'bp_keepers_playlist'
+                """)
         }
     }
 
@@ -590,7 +595,7 @@ public final class Store: Sendable {
         var s = AppSettings()
         if let v = stored["sc_queue_playlist"] { s.scQueuePlaylist = v }
         if let v = stored["yt_queue_playlist"] { s.ytQueuePlaylist = v }
-        if let v = stored["bp_keepers_playlist"] { s.bpKeepersPlaylist = v }
+        if let v = stored["bp_queue_playlist"] { s.bpQueuePlaylist = v }
         if let v = stored["target_format"] { s.targetFormat = v }
         if let v = stored["poll_minutes"], let n = Int(v) { s.pollMinutes = n }
         if let v = stored["anthropic_model"] { s.anthropicModel = v }
@@ -602,7 +607,7 @@ public final class Store: Sendable {
 
     public func saveSettings(_ values: [String: String]) throws {
         let allowed: Set<String> = ["sc_queue_playlist", "yt_queue_playlist",
-                                    "bp_keepers_playlist", "target_format",
+                                    "bp_queue_playlist", "target_format",
                                     "poll_minutes", "anthropic_model", "anthropic_api_key",
                                     "collection_dir", "downloads_dir"]
         try dbQueue.write { db in

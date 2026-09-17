@@ -142,9 +142,9 @@ struct SettingsView: View {
     var beatportTab: some View {
         Form {
             statusRow("beatport")
-            TextField("Keepers playlist", text: $settings.bpKeepersPlaylist)
+            TextField("Queue playlist", text: $settings.bpQueuePlaylist)
             Button("Save") {
-                save(["bp_keepers_playlist": settings.bpKeepersPlaylist], note: "beatport")
+                save(["bp_queue_playlist": settings.bpQueuePlaylist], note: "beatport")
             }
             Divider()
             cookieControls("beatport", steps:
