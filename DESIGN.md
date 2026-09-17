@@ -26,7 +26,12 @@ Two halves:
    with a download), and the explicit Upgrade action enters the pipeline
    with `upgrade_path` set — normalize replaces the old rip in place,
    keeping folder and genre. The Source column stays pure identity:
-   service plus page link.
+   service plus page link. A YTM match can pass the duration gate and
+   still be the wrong recording; the row's Wrong Match — Rematch action
+   trashes the file, appends the video id to the track's
+   `rejected_ytm_ids`, and re-enters resolve. Rejected ids are excluded
+   from every later search — matcher and LLM adjudicator never see them —
+   so the track matches something else or lands on the buy list.
 
 **Analyze**: quality is live — an on-demand Library action ("Analyze
 Quality") scoring tracks with Meta's audiobox-aesthetics model via a

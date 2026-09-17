@@ -187,7 +187,7 @@ public actor Reconciler {
 
     func resolveViaYTM(_ settings: AppSettings, _ track: Track) async {
         let query = "\(track.artist) \(Matcher.displayTitle(track.title, mix: track.mix))"
-        let candidates: [YTMCandidate]
+        var candidates: [YTMCandidate]
         do {
             candidates = try await YTMusicClient().searchSongs(query)
         } catch {
@@ -195,6 +195,7 @@ public actor Reconciler {
             try? store.setStatus(track.id, "needs_review", "YTM search failed", "\(error)")
             return
         }
+        candidates.removeAll { track.rejectedYtmIds.contains($0.videoId) }
         var result = Matcher.match(candidates: candidates, mix: track.mix,
                                    durationS: track.durationS)
         if result.verdict == "ambiguous" {

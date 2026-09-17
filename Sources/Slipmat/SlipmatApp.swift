@@ -319,6 +319,18 @@ final class AppModel {
         runCycle()
     }
 
+    /// The filed audio is the wrong recording: trash it and rematch, with the
+    /// rejected video id excluded from every future search.
+    func rejectMatch(_ track: Track) {
+        guard track.status == "filed", track.chosenSource == "ytm",
+              let path = track.filePath else { return }
+        if player.current?.path == path { player.stop() }
+        _ = scanner.move([path], to: cfg.trashDir)
+        try? store.rejectYtmMatch(track.id)
+        refresh()
+        runCycle()
+    }
+
     func retry(_ track: Track) {
         try? store.setStatus(track.id, "new", "Retrying")
         refresh()

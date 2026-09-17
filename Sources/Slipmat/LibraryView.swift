@@ -341,6 +341,11 @@ struct LibraryView: View {
             if let raw = row.sourceURL, let url = URL(string: raw) {
                 Button("Open Source Page") { NSWorkspace.shared.open(url) }
             }
+            if let track = model.tracks.first(where: {
+                   $0.filePath == row.id && $0.status == "filed" && $0.chosenSource == "ytm"
+               }) {
+                Button("Wrong Match — Rematch") { model.rejectMatch(track) }
+            }
         }
         let upgradeables = rows.filter { paths.contains($0.id) && $0.isUpgradeable }
         if !upgradeables.isEmpty {

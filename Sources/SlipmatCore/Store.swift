@@ -20,6 +20,7 @@ public struct Track: Identifiable, Sendable {
     public var filePath: String?
     public var filedAt: String?
     public var upgradePath: String?
+    public var rejectedYtmIds: Set<String>
 
     init(row: Row) {
         id = row["id"]
@@ -40,6 +41,8 @@ public struct Track: Identifiable, Sendable {
         filePath = row["file_path"]
         filedAt = row["filed_at"]
         upgradePath = row["upgrade_path"]
+        let rejected: String = row["rejected_ytm_ids"] ?? ""
+        rejectedYtmIds = Set(rejected.split(separator: " ").map(String.init))
     }
 }
 
@@ -88,7 +91,8 @@ public final class Store: Sendable {
                   chosen_source TEXT,
                   file_path TEXT,
                   filed_at TEXT,
-                  upgrade_path TEXT
+                  upgrade_path TEXT,
+                  rejected_ytm_ids TEXT
                 );
                 CREATE TABLE IF NOT EXISTS track_events (
                   track_id INTEGER NOT NULL REFERENCES tracks(id),
@@ -133,6 +137,7 @@ public final class Store: Sendable {
                 """)
             // Databases created before the column existed pick it up here.
             _ = try? db.execute(sql: "ALTER TABLE tracks ADD COLUMN upgrade_path TEXT")
+            _ = try? db.execute(sql: "ALTER TABLE tracks ADD COLUMN rejected_ytm_ids TEXT")
         }
     }
 
@@ -329,6 +334,30 @@ public final class Store: Sendable {
                 arguments: [id, "Upgrade requested",
                             URL(fileURLWithPath: upgradePath).lastPathComponent])
             return id
+        }
+    }
+
+    /// The filed audio is the wrong recording: remember the rejected video id
+    /// so resolve never picks it again, and send the track back through.
+    public func rejectYtmMatch(_ trackId: Int64) throws {
+        try dbQueue.write { db in
+            guard let row = try Row.fetchOne(
+                      db, sql: "SELECT ytm_id, rejected_ytm_ids FROM tracks WHERE id = ?",
+                      arguments: [trackId]),
+                  let ytmId: String = row["ytm_id"] else { return }
+            let prior: String = row["rejected_ytm_ids"] ?? ""
+            let rejected = (prior.split(separator: " ").map(String.init) + [ytmId])
+                .joined(separator: " ")
+            try db.execute(
+                sql: """
+                    UPDATE tracks SET rejected_ytm_ids = ?, ytm_id = NULL,
+                      chosen_source = NULL, file_path = NULL, filed_at = NULL,
+                      status = 'new' WHERE id = ?
+                    """,
+                arguments: [rejected, trackId])
+            try db.execute(
+                sql: "INSERT INTO track_events (track_id, event, detail) VALUES (?, ?, ?)",
+                arguments: [trackId, "Wrong match rejected", ytmId])
         }
     }
 
