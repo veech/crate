@@ -23,7 +23,9 @@ struct CrateApp: App {
                 .environment(model)
                 .frame(minWidth: 920, minHeight: 520)
                 .onAppear { NSApp.activate(ignoringOtherApps: true) }
+                .toolbar(removing: .sidebarToggle)
         }
+        .windowStyle(.hiddenTitleBar)
         Settings {
             SettingsView().environment(model)
         }

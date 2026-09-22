@@ -5,9 +5,10 @@ import CrateCore
 struct ContentView: View {
     @Environment(AppModel.self) private var model
     @State private var selection: String? = "pipeline"
+    @State private var columns = NavigationSplitViewVisibility.all
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columns) {
             List(selection: $selection) {
                 Section("Workspace") {
                     HStack {
@@ -68,18 +69,23 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         } detail: {
-            switch selection {
-            case "inbox":
-                LibraryView(model: model, folder: model.collectionDir, name: "Inbox")
-            case "trash":
-                LibraryView(model: model, folder: model.cfg.trashDir.path, name: "Trash")
-            case let tag? where tag.hasPrefix("repo:"):
-                let path = String(tag.dropFirst("repo:".count))
-                LibraryView(model: model, folder: path,
-                            name: URL(fileURLWithPath: path).lastPathComponent)
-            default:
-                PipelineView()
+            Group {
+                switch selection {
+                case "inbox":
+                    LibraryView(model: model, folder: model.collectionDir, name: "Inbox")
+                case "trash":
+                    LibraryView(model: model, folder: model.cfg.trashDir.path, name: "Trash")
+                case let tag? where tag.hasPrefix("repo:"):
+                    let path = String(tag.dropFirst("repo:".count))
+                    LibraryView(model: model, folder: path,
+                                name: URL(fileURLWithPath: path).lastPathComponent)
+                default:
+                    PipelineView()
+                }
             }
+            // The header rises into the empty title strip while the sidebar
+            // holds the window controls; alone, it stays clear of them.
+            .ignoresSafeArea(.container, edges: columns == .detailOnly ? [] : .top)
         }
     }
 
