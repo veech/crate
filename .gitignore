@@ -13,5 +13,5 @@ dist/
 *.heic
 *.svg
 *.icns
-!/Slipmat.icon/Assets/icon.png
-!/Sources/Slipmat/Resources/AppIcon.icns
+!/Crate.icon/Assets/icon.png
+!/Sources/Crate/Resources/AppIcon.icns

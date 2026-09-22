@@ -1,8 +1,8 @@
-import SlipmatCore
+import CrateCore
 import Foundation
 
 let arguments = CommandLine.arguments
-let cfg = Config()
+let cfg = try Config()
 let store = try Store(at: cfg.dbURL)
 
 switch arguments.count > 1 ? arguments[1] : "help" {
@@ -27,7 +27,7 @@ case "ytm-search":
     }
 
 case "set":
-    guard arguments.count >= 4 else { print("usage: slipmatctl set <key> <value>"); exit(1) }
+    guard arguments.count >= 4 else { print("usage: cratectl set <key> <value>"); exit(1) }
     try store.saveSettings([arguments[2]: arguments[3...].joined(separator: " ")])
     print("saved \(arguments[2])")
 
@@ -36,5 +36,5 @@ case "settings":
     print(s)
 
 default:
-    print("usage: slipmatctl auth | cycle | ytm-search <query> | settings | set <key> <value>")
+    print("usage: cratectl auth | cycle | ytm-search <query> | settings | set <key> <value>")
 }

@@ -2,7 +2,7 @@ import AVFoundation
 import AppKit
 import MediaPlayer
 import SwiftUI
-import SlipmatCore
+import CrateCore
 
 @Observable
 @MainActor

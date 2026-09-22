@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import SlipmatCore
+import CrateCore
 
 let losslessExts: Set<String> = ["flac", "wav", "aiff", "aif"]
 

@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
-import SlipmatCore
+import CrateCore
 
 struct StageSpec: Identifiable {
     let id: String

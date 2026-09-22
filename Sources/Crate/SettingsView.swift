@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import SlipmatCore
+import CrateCore
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model

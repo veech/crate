@@ -1,25 +1,25 @@
 #!/bin/zsh
-# Assemble dist/Slipmat.app from a release build.
+# Assemble dist/Crate.app from a release build.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 swift build -c release
 
-APP=dist/Slipmat.app
+APP=dist/Crate.app
 rm -rf dist
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-cp .build/release/Slipmat "$APP/Contents/MacOS/Slipmat"
-cp -R .build/release/slipmat_Slipmat.bundle "$APP/Contents/Resources/"
+cp .build/release/Crate "$APP/Contents/MacOS/Crate"
+cp -R .build/release/crate_Crate.bundle "$APP/Contents/Resources/"
 cp -R .build/release/GRDB_GRDB.bundle "$APP/Contents/Resources/"
 
 # Liquid Glass icon (macOS 26+) plus the icns fallback actool renders from
 # it. Absolute paths: actool's ibtoold daemon resolves relative ones against
 # its own working directory, not ours.
-xcrun actool "$PWD/Slipmat.icon" --compile "$PWD/$APP/Contents/Resources" \
+xcrun actool "$PWD/Crate.icon" --compile "$PWD/$APP/Contents/Resources" \
     --output-format human-readable-text --warnings --errors \
     --platform macosx --minimum-deployment-target 15.0 \
-    --app-icon Slipmat --include-all-app-icons \
+    --app-icon Crate --include-all-app-icons \
     --output-partial-info-plist "$PWD/dist/actool-partial.plist"
 rm -f dist/actool-partial.plist
 
@@ -30,17 +30,17 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Slipmat</string>
+    <string>Crate</string>
     <key>CFBundleDisplayName</key>
-    <string>Slipmat</string>
+    <string>Crate</string>
     <key>CFBundleIdentifier</key>
-    <string>me.veech.slipmat</string>
+    <string>me.veech.crate</string>
     <key>CFBundleExecutable</key>
-    <string>Slipmat</string>
+    <string>Crate</string>
     <key>CFBundleIconFile</key>
-    <string>Slipmat</string>
+    <string>Crate</string>
     <key>CFBundleIconName</key>
-    <string>Slipmat</string>
+    <string>Crate</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

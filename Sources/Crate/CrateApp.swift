@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
-import SlipmatCore
+import CrateCore
 
 @main
-struct SlipmatApp: App {
+struct CrateApp: App {
     @State private var model = AppModel()
 
     init() {
@@ -18,7 +18,7 @@ struct SlipmatApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Slipmat") {
+        WindowGroup("Crate") {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 920, minHeight: 520)
@@ -55,9 +55,9 @@ final class AppModel {
     var lastError: String?
 
     init() {
-        let cfg = Config()
-        self.cfg = cfg
         do {
+            let cfg = try Config()
+            self.cfg = cfg
             let store = try Store(at: cfg.dbURL)
             self.store = store
             self.reconciler = Reconciler(cfg: cfg, store: store)
