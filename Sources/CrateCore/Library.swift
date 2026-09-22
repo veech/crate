@@ -107,8 +107,20 @@ public struct LibraryScanner: Sendable {
             if dataless { try? fm.startDownloadingUbiquitousItem(at: url) }
             // Only complete probes are cached, so a zero-duration row is
             // garbage from an older cache; fall through and re-probe it.
-            if let hit = cached[url.path], hit.mtime == mtime, hit.size == size,
+            if var hit = cached[url.path], hit.mtime == mtime, hit.size == size,
                hit.durationS > 0 {
+                if let artPath = hit.artPath, !fm.fileExists(atPath: artPath) {
+                    let localArt = artDir.appendingPathComponent(Self.hash(url.path) + ".jpg")
+                    if fm.fileExists(atPath: localArt.path) {
+                        hit.artPath = localArt.path
+                        try? store.upsertLibraryFile(hit)
+                    } else if dataless {
+                        hit.artPath = nil
+                    } else {
+                        stale.append((url, mtime, size))
+                        continue
+                    }
+                }
                 files.append(hit)
             } else if dataless {
                 files.append(placeholder(url, mtime: mtime, size: size))
