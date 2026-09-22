@@ -3,3 +3,15 @@
 *.sqlite3
 .DS_Store
 dist/
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.tif
+*.tiff
+*.heic
+*.svg
+*.icns
+!/Slipmat.icon/Assets/icon.png
+!/Sources/Slipmat/Resources/AppIcon.icns
