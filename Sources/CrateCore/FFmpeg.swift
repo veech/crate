@@ -28,7 +28,7 @@ public enum FFmpeg {
 
         var artFile: URL?
         // AIFF has no reliable embedded-art path through ffmpeg; tags only.
-        if let art, ext == "flac" || ext == "m4a" {
+        if let art, ext == "flac" || ext == "m4a" || ext == "mp3" {
             let file = path.deletingLastPathComponent()
                 .appendingPathComponent(UUID().uuidString + ".jpg")
             try art.write(to: file)
@@ -44,6 +44,8 @@ public enum FFmpeg {
                  "-metadata", "title=\(title)",
                  "-metadata", "artist=\(artist)"]
         if ext == "aiff" || ext == "aif" { args += ["-write_id3v2", "1"] }
+        // ID3v2.3 is the version DJ software reads APIC frames from reliably.
+        if ext == "mp3" { args += ["-id3v2_version", "3"] }
         args.append(temp.path)
 
         defer { if let artFile { try? FileManager.default.removeItem(at: artFile) } }
@@ -113,6 +115,7 @@ public enum FFmpeg {
             args += ["-metadata", "\(key)=\(value)"]
         }
         if ext == "aiff" || ext == "aif" { args += ["-write_id3v2", "1"] }
+        if ext == "mp3" { args += ["-id3v2_version", "3"] }
         args.append(temp.path)
         let tool = try Binaries.find("ffmpeg")
         let result = try await ProcessRunner.run(tool, args)
